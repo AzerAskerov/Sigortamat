@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "dgSpecHash": "QEqNd9Z3tcU=",
+  "success": true,
+  "projectFilePath": "C:\\Users\\asgaroff\\sigortaYoxla\\sigortaYoxla.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\asgaroff\\.nuget\\packages\\dotnetseleniumextras.waithelpers\\3.11.0\\dotnetseleniumextras.waithelpers.3.11.0.nupkg.sha512",
+    "C:\\Users\\asgaroff\\.nuget\\packages\\selenium.support\\4.34.0\\selenium.support.4.34.0.nupkg.sha512",
+    "C:\\Users\\asgaroff\\.nuget\\packages\\selenium.webdriver\\4.34.0\\selenium.webdriver.4.34.0.nupkg.sha512",
+    "C:\\Users\\asgaroff\\.nuget\\packages\\selenium.webdriver.chromedriver\\138.0.7204.9400\\selenium.webdriver.chromedriver.138.0.7204.9400.nupkg.sha512"
+  ],
+  "logs": []
+}
