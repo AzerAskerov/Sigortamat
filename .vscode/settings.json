@@ -1,0 +1,6 @@
+{
+    "github.copilot.chat.agent.terminal.allowList": {
+        "dotnet build": true,
+        "dotnet run": true
+    }
+}

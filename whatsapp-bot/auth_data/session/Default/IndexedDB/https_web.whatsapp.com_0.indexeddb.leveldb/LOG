@@ -1,0 +1,25 @@
+2025/07/17-08:55:26.583 3840 Reusing MANIFEST C:\Users\asgaroff\sigortaYoxla\whatsapp-bot\auth_data\session\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
+2025/07/17-08:55:26.584 3840 Recovering log #68
+2025/07/17-08:55:26.615 3840 Reusing old log C:\Users\asgaroff\sigortaYoxla\whatsapp-bot\auth_data\session\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/000068.log 
+2025/07/17-08:55:26.616 3840 Delete type=2 #66
+2025/07/17-08:55:26.616 3840 Delete type=2 #69
+2025/07/17-08:55:28.061 70ac Level-0 table #74: started
+2025/07/17-08:55:28.075 70ac Level-0 table #74: 118308 bytes OK
+2025/07/17-08:55:28.080 70ac Delete type=0 #68
+2025/07/17-08:55:28.081 70ac Manual compaction at level-0 from '\x00'\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00(\x00\x00\x00' @ 0 : 0; will stop at (end)
+2025/07/17-08:55:28.126 3840 Level-0 table #76: started
+2025/07/17-08:55:28.132 3840 Level-0 table #76: 9277 bytes OK
+2025/07/17-08:55:28.137 3840 Delete type=0 #73
+2025/07/17-08:55:28.138 3840 Manual compaction at level-0 from '\x00(\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00)\x00\x00\x00' @ 0 : 0; will stop at '\x00(\x00\x00\x05' @ 216393 : 0
+2025/07/17-08:55:28.138 3840 Compacting 1@0 + 1@1 files
+2025/07/17-08:55:28.155 3840 Generated table #77@0: 3426 keys, 77063 bytes
+2025/07/17-08:55:28.155 3840 Compacted 1@0 + 1@1 files => 77063 bytes
+2025/07/17-08:55:28.160 3840 compacted to: files[ 0 1 2 0 0 0 0 ]
+2025/07/17-08:55:28.160 3840 Delete type=2 #76
+2025/07/17-08:55:28.161 3840 Manual compaction at level-0 from '\x00(\x00\x00\x05' @ 216393 : 0 .. '\x00)\x00\x00\x00' @ 0 : 0; will stop at (end)
+2025/07/17-08:55:31.729 1484 Compacting 1@1 + 2@2 files
+2025/07/17-08:55:31.964 1484 Generated table #78@1: 47480 keys, 2207081 bytes
+2025/07/17-08:55:31.974 1484 Generated table #79@1: 772 keys, 85101 bytes
+2025/07/17-08:55:31.975 1484 Compacted 1@1 + 2@2 files => 2292182 bytes
+2025/07/17-08:55:31.978 1484 compacted to: files[ 0 0 2 0 0 0 0 ]
+2025/07/17-08:55:31.978 1484 Delete type=2 #74

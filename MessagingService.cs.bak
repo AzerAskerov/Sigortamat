@@ -1,0 +1,74 @@
+using System;
+using System.Diagnostics;
+using System.IO;
+using System.Threading.Tasks;
+
+namespace SigortaYoxla
+{
+    /// <summary>
+    /// Sadə və effektiv Message Service - yalnız debug mode WhatsApp
+    /// </summary>
+    public class MessagingService
+    {
+        private readonly string _whatsappBotPath;
+        
+        public MessagingService()
+        {
+            _whatsappBotPath = Path.Combine(Directory.GetCurrentDirectory(), "whatsapp-bot");
+            Console.WriteLine($"🔍 WhatsApp Bot Path: {_whatsappBotPath}");
+        }
+
+        /// <summary>
+        /// WhatsApp mesajı göndər - YALNIZ DEBUG MODE
+        /// </summary>
+        public async Task<bool> SendWhatsAppMessage(string phoneNumber, string message)
+        {
+            try
+            {
+                Console.WriteLine($"📱 WhatsApp mesajı göndərilir: {phoneNumber}");
+                Console.WriteLine($"📝 Mesaj: {message}");
+                
+                var processInfo = new ProcessStartInfo
+                {
+                    FileName = "node",
+                    Arguments = $"debug-whatsapp.js {phoneNumber} \"{message}\"",
+                    WorkingDirectory = _whatsappBotPath,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using var process = Process.Start(processInfo);
+                if (process == null)
+                {
+                    Console.WriteLine("❌ Debug prosesi başlamadı");
+                    return false;
+                }
+                
+                await process.WaitForExitAsync();
+                
+                var output = await process.StandardOutput.ReadToEndAsync();
+                var error = await process.StandardError.ReadToEndAsync();
+
+                Console.WriteLine($"📋 Debug output: {output}");
+                
+                if (process.ExitCode == 0)
+                {
+                    Console.WriteLine($"✅ WhatsApp mesajı göndərildi: {phoneNumber}");
+                    return true;
+                }
+                else
+                {
+                    Console.WriteLine($"❌ WhatsApp xətası: {error}");
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Mesaj göndərmə xətası: {ex.Message}");
+                return false;
+            }
+        }
+    }
+}

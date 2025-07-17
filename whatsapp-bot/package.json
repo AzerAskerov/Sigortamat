@@ -1,0 +1,17 @@
+{
+  "name": "whatsapp-sender",
+  "version": "1.0.0",
+  "description": "WhatsApp mesaj göndərən konsol proqramı",
+  "main": "whatsapp-sender.js",
+  "scripts": {
+    "start": "node whatsapp-sender.js",
+    "dev": "node whatsapp-sender.js"
+  },
+  "dependencies": {
+    "whatsapp-web.js": "^1.25.0",
+    "qrcode-terminal": "^0.12.0"
+  },
+  "keywords": ["whatsapp", "automation", "console"],
+  "author": "Your Name",
+  "license": "MIT"
+}

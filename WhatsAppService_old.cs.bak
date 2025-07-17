@@ -1,0 +1,200 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Text.Json;
+using System.Threading.Tasks;
+
+namespace SigortaYoxla
+{
+    public class WhatsAppService
+    {
+        private readonly string _whatsappBotPath;
+        
+        public WhatsAppService()
+        {
+            // WhatsApp bot qovluğunun yolu
+            _whatsappBotPath = Path.Combine(Directory.GetCurrentDirectory(), "whatsapp-bot");
+        }
+
+        /// <summary>
+        /// Tək WhatsApp mesajı göndərir
+        /// </summary>
+        public async Task<bool> SendMessageAsync(string phoneNumber, string message)
+        {
+            try
+            {
+                Console.WriteLine($"📱 WhatsApp mesajı göndərilir: {phoneNumber}");
+                
+                var processInfo = new ProcessStartInfo
+                {
+                    FileName = "node",
+                    Arguments = $"whatsapp-sender.js send {phoneNumber} \"{message}\"",
+                    WorkingDirectory = _whatsappBotPath,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using var process = Process.Start(processInfo);
+                if (process == null)
+                {
+                    Console.WriteLine("❌ WhatsApp prosesi başlamadı");
+                    return false;
+                }
+                
+                await process.WaitForExitAsync();
+                
+                var output = await process.StandardOutput.ReadToEndAsync();
+                var error = await process.StandardError.ReadToEndAsync();
+                
+                if (process.ExitCode == 0)
+                {
+                    Console.WriteLine($"✅ WhatsApp mesajı göndərildi: {phoneNumber}");
+                    return true;
+                }
+                else
+                {
+                    Console.WriteLine($"❌ WhatsApp mesajı göndərilmədi: {error}");
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ WhatsApp xətası: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Bulk WhatsApp mesajları göndərir
+        /// </summary>
+        public async Task<bool> SendBulkMessagesAsync(List<WhatsAppMessage> messages)
+        {
+            try
+            {
+                // Müvəqqəti JSON faylı yaradırıq
+                var tempJsonFile = Path.Combine(_whatsappBotPath, $"temp_messages_{DateTime.Now:yyyyMMdd_HHmmss}.json");
+                
+                var jsonContent = JsonSerializer.Serialize(messages, new JsonSerializerOptions 
+                { 
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                    WriteIndented = true 
+                });
+                
+                await File.WriteAllTextAsync(tempJsonFile, jsonContent);
+                
+                Console.WriteLine($"📦 {messages.Count} WhatsApp mesajı göndərilir...");
+                
+                var processInfo = new ProcessStartInfo
+                {
+                    FileName = "node",
+                    Arguments = $"whatsapp-sender.js bulk \"{tempJsonFile}\"",
+                    WorkingDirectory = _whatsappBotPath,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using var process = Process.Start(processInfo);
+                if (process == null)
+                {
+                    Console.WriteLine("❌ WhatsApp bulk prosesi başlamadı");
+                    return false;
+                }
+                
+                await process.WaitForExitAsync();
+                
+                var output = await process.StandardOutput.ReadToEndAsync();
+                var error = await process.StandardError.ReadToEndAsync();
+                
+                // Müvəqqəti faylı silirik
+                if (File.Exists(tempJsonFile))
+                {
+                    File.Delete(tempJsonFile);
+                }
+                
+                if (process.ExitCode == 0)
+                {
+                    Console.WriteLine($"✅ Bulk WhatsApp mesajları göndərildi!");
+                    Console.WriteLine(output);
+                    return true;
+                }
+                else
+                {
+                    Console.WriteLine($"❌ Bulk WhatsApp mesajları göndərilmədi: {error}");
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Bulk WhatsApp xətası: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// WhatsApp bot hazırlıq vəziyyətini yoxlayır
+        /// </summary>
+        public async Task<bool> IsWhatsAppReadyAsync()
+        {
+            try
+            {
+                var processInfo = new ProcessStartInfo
+                {
+                    FileName = "node",
+                    Arguments = "whatsapp-sender.js test",
+                    WorkingDirectory = _whatsappBotPath,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using var process = Process.Start(processInfo);
+                if (process == null)
+                {
+                    return false;
+                }
+                
+                await process.WaitForExitAsync();
+                
+                return process.ExitCode == 0;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Sığorta nəticəsinə əsasən WhatsApp mesajı formatlayır
+        /// </summary>
+        public static string FormatInsuranceMessage(string carNumber, string insuranceResult)
+        {
+            var timestamp = DateTime.Now.ToString("dd.MM.yyyy HH:mm");
+            
+            return $@"🚗 Avtomobil Sığorta Məlumatları
+
+📋 Nömrə: {carNumber}
+📅 Yoxlanma tarixi: {timestamp}
+
+{insuranceResult}
+
+ℹ️ Bu məlumat SigortaYoxla sistemi tərəfindən avtomatik olaraq əldə edilmişdir.
+
+Təşəkkürlər! 🙏";
+        }
+    }
+
+    /// <summary>
+    /// WhatsApp mesajı strukturu
+    /// </summary>
+    public class WhatsAppMessage
+    {
+        public string PhoneNumber { get; set; } = "";
+        public string Message { get; set; } = "";
+    }
+}
