@@ -365,3 +365,7 @@ selenium-manager/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# WhatsApp bot session and cache files
+whatsapp-bot/auth_data/
+whatsapp-bot/.wwebjs_cache/
