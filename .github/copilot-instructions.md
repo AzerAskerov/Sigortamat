@@ -2,12 +2,12 @@
 
 ## Project Overview
 **SigortaYoxla** is an automated insurance checker system that uses Hangfire background jobs to:
-1. Check car insurance status via web scraping
+1. Check car insurance status via web scraping with Selenium WebDriver
 2. Send notifications via WhatsApp Web.js
 3. Manage tasks through SQL Server queue with web dashboard
 
 ## Architecture Pattern
-- **Queue-based processing**: All work items flow through `QueueItem` entities in SQL Server
+- **Queue-based processing**: All work items flow through `Queue` entities in SQL Server
 - **Dual-language approach**: C# for background services, Node.js for WhatsApp automation
 - **Console + Web hybrid**: Console app hosts both Hangfire server and web dashboard
 - **Service-oriented**: Clear separation between `InsuranceService`, `WhatsAppService`, and `QueueRepository`
@@ -34,58 +34,133 @@ dotnet ef migrations add <MigrationName>
 dotnet ef database update
 ```
 
-## Project-Specific Patterns
+## Current System Architecture
 
-### Queue Processing Convention
-- Two queue types: `"insurance"` and `"whatsapp"` in `QueueItem.Type`
-- All queue operations go through static `QueueRepository` methods
-- Jobs mark items as processed using `MarkAsProcessed(id, error?)`
-- Rate limiting: 1s for insurance, 3s for WhatsApp
+### Queue Management
+- Three queue types: `"insurance"` and `"whatsapp"` in `Queue.Type`
+- Status flow: `"pending"` → `"processing"` → `"completed"` or `"failed"`
+- Priority support with retry mechanisms
+- **QueueItems table has been removed** - only use new Queue system
 
-### Service Integration Pattern
-```csharp
-// Services don't use DI - direct instantiation in jobs
-public InsuranceJob() {
-    _insuranceService = new InsuranceService();
-}
+### Insurance Processing
+- **Real mode**: Selenium WebDriver + Chrome to scrape ISB.az
+- **HTML parsing**: Direct extraction from table elements using CSS selectors
+- **PolicyNumber and ExpiryDate fields removed** - no longer stored or processed
+- Single worker configuration to prevent multiple browser instances
+
+### WhatsApp Integration
+- Node.js WhatsApp Web.js for message sending
+- Automated session management
+- Message queue processing with retry logic
+
+## Project Structure
+```
+sigortaYoxla/
+├── Program.cs              # Main entry point + Hangfire setup
+├── appsettings.json       # Configuration (DB connections, Chrome settings)
+│
+├── Data/
+│   ├── ApplicationDbContext.cs        # EF Core context  
+│   └── ApplicationDbContextFactory.cs # Factory for context creation
+│
+├── Models/
+│   ├── Queue.cs            # Main queue entity
+│   ├── InsuranceJob.cs     # Insurance job details (linked to Queue)
+│   ├── WhatsAppJob.cs      # WhatsApp job details (linked to Queue)
+│   └── InsuranceResult.cs  # Insurance result model
+│
+├── Services/
+│   ├── QueueRepository.cs         # Queue management operations
+│   ├── InsuranceService.cs        # Insurance checking with Selenium
+│   ├── InsuranceJobRepository.cs  # Insurance job operations
+│   ├── WhatsAppService.cs         # WhatsApp integration
+│   └── WhatsAppJobRepository.cs   # WhatsApp job operations
+│
+├── Jobs/
+│   ├── InsuranceJob.cs    # Background job for insurance checking
+│   └── WhatsAppJob.cs     # Background job for WhatsApp sending
+│
+├── whatsapp-bot/          # Node.js WhatsApp automation
+│   ├── package.json
+│   ├── whatsapp-sender.js
+│   └── auth_data/         # WhatsApp session storage
+│
+└── Migrations/            # EF Core database migrations
 ```
 
-### Console Output Convention
-- Emojis for visual status: 🚗 🔄 ✅ ❌ 📱 📋
-- Structured headers with padding: `"=".PadRight(40, '=')`
-- Azerbaijani language for user messages
+## Database Schema
 
-### Cross-Process Communication
-- C# calls Node.js via `Process.Start()` with command line args
-- WhatsApp service expects: `node debug-whatsapp.js {phone} "{message}"`
-- Exit codes determine success/failure (0 = success)
+### Main Tables:
+1. **Queues** - Central queue management
+   - Id, Type, Status, Priority, CreatedAt, StartedAt, CompletedAt, ErrorMessage, RetryCount
 
-## Critical Configuration
-- **Connection String**: Uses LocalDB by default in `appsettings.json`
-- **Hangfire Queues**: `["insurance", "whatsapp", "default"]` with 2 workers
-- **Recurring Jobs**: Insurance (every minute), WhatsApp (every 2 minutes)
-- **Dashboard Auth**: `AllowAllAuthorizationFilter` - no authentication
+2. **InsuranceJobs** - Insurance job details
+   - Id, QueueId (FK), CarNumber, Company, VehicleBrand, VehicleModel, Status, ResultText, ProcessingTimeMs, CreatedAt, ProcessedAt
 
-## File Organization Rules
-- **Models/**: Data entities (only `QueueItem` currently)
-- **Services/**: Business logic (Insurance, WhatsApp, QueueRepository)
-- **Jobs/**: Hangfire job classes with `[Queue]` attributes
-- **Data/**: EF Core context and factory
-- **whatsapp-bot/**: Node.js WhatsApp automation (separate package.json)
+3. **WhatsAppJobs** - WhatsApp job details  
+   - Id, QueueId (FK), PhoneNumber, MessageText, DeliveryStatus, ErrorDetails, SentAt, CreatedAt
 
-## Common Debugging Points
-- Check `QueueRepository.ShowQueueStatus()` for queue state
-- WhatsApp requires authenticated session in `auth_data/session/`
-- Insurance service is currently simulated (2s delay)
-- Database issues: verify LocalDB/SQL Server connection
+## Key Features
 
-## Integration Dependencies
-- **External**: WhatsApp Web (requires phone authentication)
-- **Internal**: SQL Server for queue persistence
-- **Runtime**: Node.js must be available in PATH for WhatsApp service
+### Insurance Checking (Real Mode)
+- Uses Selenium WebDriver with Chrome
+- Scrapes ISB.az website for real insurance data
+- HTML table parsing with CSS selectors
+- Stores real company names and vehicle information
+- **No longer stores PolicyNumber or ExpiryDate**
 
-When modifying this codebase:
-- Maintain the emoji console output style
-- Use static methods in `QueueRepository` for data access
-- Add appropriate rate limiting for external services
-- Follow the queue-first processing pattern for new features
+### Queue Processing
+- Priority-based processing
+- Automatic retry with failure tracking
+- Single worker configuration for browser automation
+- Real-time status monitoring
+
+### WhatsApp Integration
+- WhatsApp Web.js automation
+- Session persistence
+- Message queue with retry logic
+
+## Common Commands
+
+### Database Operations
+```powershell
+# Check InsuranceJobs table
+sqlcmd -S sigortayoxla.database.windows.net -d SigortaYoxlaDb -U a.azar1988 -P "54EhP6.G@RKcp8#" -Q "SELECT TOP 5 CarNumber, Company, VehicleBrand, VehicleModel, Status, CreatedAt FROM InsuranceJobs ORDER BY CreatedAt DESC"
+
+# Check Queue status
+sqlcmd -S sigortayoxla.database.windows.net -d SigortaYoxlaDb -U a.azar1988 -P "54EhP6.G@RKcp8#" -Q "SELECT Type, Status, COUNT(*) as Count FROM Queues GROUP BY Type, Status"
+
+# Add test insurance job
+sqlcmd -S sigortayoxla.database.windows.net -d SigortaYoxlaDb -U a.azar1988 -P "54EhP6.G@RKcp8#" -Q "INSERT INTO Queues (Type, Status, Priority) VALUES ('insurance', 'pending', 1); DECLARE @QueueId INT = SCOPE_IDENTITY(); INSERT INTO InsuranceJobs (QueueId, CarNumber, Status) VALUES (@QueueId, '10RL096', 'pending');"
+```
+
+### Development Tips
+- Always use real car numbers for testing (format: 10RL096, 90HB986, etc.)
+- Monitor Chrome DevTools for debugging web scraping issues
+- Use single worker configuration to prevent browser conflicts
+- Check Hangfire dashboard for job status and errors
+
+## Testing Guidelines
+- Use real Azerbaijani car plate numbers for authentic testing
+- Test with both valid and invalid car numbers
+- Verify HTML parsing extracts correct company and vehicle data
+- **Do not test PolicyNumber or ExpiryDate** - these fields are no longer used
+
+## Error Handling
+- Chrome driver issues: Check chromedriver.exe in bin folder
+- Database connection: Verify Azure SQL connection string
+- WhatsApp session: Delete auth_data folder to reset session
+- HTML parsing failures: Check if ISB.az website structure changed
+
+## Performance Notes
+- Single worker prevents multiple browser instances
+- Rate limiting between requests to avoid blocking
+- Chrome runs in visible mode for debugging
+- Database connection pooling via EF Core
+
+## Recent Updates
+- **Removed PolicyNumber and ExpiryDate fields** from InsuranceJob model
+- **Removed QueueItems table** - migrated to new Queue system
+- **Simplified InsuranceResult model** - removed unused fields
+- **Updated HTML parsing** - focus on company and vehicle data only
+- **Single worker configuration** - prevents browser conflicts

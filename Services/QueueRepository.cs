@@ -8,82 +8,99 @@ using SigortaYoxla.Models;
 namespace SigortaYoxla.Services
 {
     /// <summary>
-    /// Queue repository - SQL database ilə işləyir
+    /// Queue repository - Yalnız yeni queue sistemi
     /// </summary>
     public class QueueRepository
     {
-        private static ApplicationDbContext _dbContext;
-
-        public static void Initialize(ApplicationDbContext dbContext)
-        {
-            _dbContext = dbContext;
-        }
+        #region Yeni Sistem - Queue Management
 
         /// <summary>
-        /// Test məlumatları ilə queue-nu doldur
+        /// Yeni queue elementi yarat
         /// </summary>
-        public static void SeedTestData()
+        public static int AddToQueue(string type, int priority = 0)
         {
-            if (_dbContext.QueueItems.Any())
-                return;
-
-            // Sığorta yoxlama queue-ları
-            var insuranceItems = new[]
+            using var db = new ApplicationDbContextFactory().CreateDbContext(new string[0]);
+            var queue = new Queue
             {
-                new QueueItem { Type = "insurance", CarNumber = "90HB986", IsProcessed = false, CreatedAt = DateTime.Now },
-                new QueueItem { Type = "insurance", CarNumber = "90HB987", IsProcessed = false, CreatedAt = DateTime.Now },
-                new QueueItem { Type = "insurance", CarNumber = "90HB988", IsProcessed = false, CreatedAt = DateTime.Now },
+                Type = type,
+                Status = "pending",
+                Priority = priority,
+                CreatedAt = DateTime.Now
             };
+            
+            db.Queues.Add(queue);
+            db.SaveChanges();
+            
+            Console.WriteLine($"🔗 Queue yaradıldı: {type} (ID: {queue.Id}, Priority: {priority})");
+            return queue.Id;
+        }
 
-            // WhatsApp mesaj queue-ları
-            var whatsappItems = new[]
+        /// <summary>
+        /// Queue elementini işlənir statusuna keçir
+        /// </summary>
+        public static void MarkAsProcessing(int queueId)
+        {
+            using var db = new ApplicationDbContextFactory().CreateDbContext(new string[0]);
+            var queue = db.Queues.Find(queueId);
+            if (queue != null)
             {
-                new QueueItem { Type = "whatsapp", PhoneNumber = "994555902205", Message = "Salam! Test mesajı 1", IsProcessed = false, CreatedAt = DateTime.Now },
-                new QueueItem { Type = "whatsapp", PhoneNumber = "994707877878", Message = "Salam! Test mesajı 2", IsProcessed = false, CreatedAt = DateTime.Now },
-                new QueueItem { Type = "whatsapp", PhoneNumber = "994504519279", Message = "Salam! Test mesajı 3", IsProcessed = false, CreatedAt = DateTime.Now },
-            };
-
-            _dbContext.QueueItems.AddRange(insuranceItems);
-            _dbContext.QueueItems.AddRange(whatsappItems);
-            _dbContext.SaveChanges();
-
-            Console.WriteLine($"🔄 Queue test məlumatları yükləndi: {_dbContext.QueueItems.Count()} element");
-        }
-
-        /// <summary>
-        /// Proses olunmamış sığorta queue-larını gətir
-        /// </summary>
-        public static List<QueueItem> GetUnprocessedInsuranceItems()
-        {
-            return _dbContext.QueueItems
-                .Where(q => q.Type == "insurance" && !q.IsProcessed)
-                .ToList();
-        }
-
-        /// <summary>
-        /// Proses olunmamış WhatsApp queue-larını gətir
-        /// </summary>
-        public static List<QueueItem> GetUnprocessedWhatsAppItems()
-        {
-            return _dbContext.QueueItems
-                .Where(q => q.Type == "whatsapp" && !q.IsProcessed)
-                .ToList();
-        }
-
-        /// <summary>
-        /// Queue elementini proses olunmuş kimi işarələ
-        /// </summary>
-        public static void MarkAsProcessed(int id, string? error = null)
-        {
-            var item = _dbContext.QueueItems.Find(id);
-            if (item != null)
-            {
-                item.IsProcessed = true;
-                item.ProcessedAt = DateTime.Now;
-                item.Error = error;
-                _dbContext.SaveChanges();
+                queue.Status = "processing";
+                queue.StartedAt = DateTime.Now;
+                db.SaveChanges();
             }
         }
+
+        /// <summary>
+        /// Queue elementini tamamlanmış kimi işarələ
+        /// </summary>
+        public static void MarkAsCompleted(int queueId)
+        {
+            using var db = new ApplicationDbContextFactory().CreateDbContext(new string[0]);
+            var queue = db.Queues.Find(queueId);
+            if (queue != null)
+            {
+                queue.Status = "completed";
+                queue.CompletedAt = DateTime.Now;
+                db.SaveChanges();
+                
+                Console.WriteLine($"✅ Queue tamamlandı: ID {queueId}");
+            }
+        }
+
+        /// <summary>
+        /// Queue elementini uğursuz kimi işarələ
+        /// </summary>
+        public static void MarkAsFailed(int queueId, string errorMessage)
+        {
+            using var db = new ApplicationDbContextFactory().CreateDbContext(new string[0]);
+            var queue = db.Queues.Find(queueId);
+            if (queue != null)
+            {
+                queue.Status = "failed";
+                queue.ErrorMessage = errorMessage;
+                queue.RetryCount++;
+                queue.CompletedAt = DateTime.Now;
+                db.SaveChanges();
+                
+                Console.WriteLine($"❌ Queue uğursuz: ID {queueId} - {errorMessage}");
+            }
+        }
+
+        /// <summary>
+        /// Gözləyən queue elementlərini gətir
+        /// </summary>
+        public static List<Queue> GetPendingQueues(string type, int limit = 10)
+        {
+            using var db = new ApplicationDbContextFactory().CreateDbContext(new string[0]);
+            return db.Queues
+                       .Where(q => q.Type == type && q.Status == "pending")
+                       .OrderBy(q => q.Priority)
+                       .ThenBy(q => q.CreatedAt)
+                       .Take(limit)
+                       .ToList();
+        }
+
+        #endregion
 
         /// <summary>
         /// Bütün queue elementlərinin statusunu göstər
@@ -92,22 +109,35 @@ namespace SigortaYoxla.Services
         {
             Console.WriteLine("\n📊 QUEUE STATUS:");
             Console.WriteLine("=".PadRight(50, '='));
-            var total = _dbContext.QueueItems.Count();
-            var processed = _dbContext.QueueItems.Count(q => q.IsProcessed);
-            var pending = total - processed;
-
-            Console.WriteLine($"📋 Ümumi: {total}");
-            Console.WriteLine($"✅ Proses olunmuş: {processed}");
-            Console.WriteLine($"⏳ Gözləyən: {pending}");
-
-            if (pending > 0)
+            
+            using var db = new ApplicationDbContextFactory().CreateDbContext(new string[0]);
+            if (db.Queues.Any())
             {
-                Console.WriteLine("\n⏳ GÖZLƏYƏN QUEUE-LAR:");
-                var pendingItems = _dbContext.QueueItems.Where(q => !q.IsProcessed).ToList();
-                foreach (var item in pendingItems)
+                var newTotal = db.Queues.Count();
+                var newCompleted = db.Queues.Count(q => q.Status == "completed");
+                var newFailed = db.Queues.Count(q => q.Status == "failed");
+                var newPending = db.Queues.Count(q => q.Status == "pending");
+                var newProcessing = db.Queues.Count(q => q.Status == "processing");
+
+                Console.WriteLine($"📋 Ümumi: {newTotal}");
+                Console.WriteLine($"✅ Tamamlanmış: {newCompleted}");
+                Console.WriteLine($"❌ Uğursuz: {newFailed}");
+                Console.WriteLine($"🔄 İşlənir: {newProcessing}");
+                Console.WriteLine($"⏳ Gözləyən: {newPending}");
+
+                if (newPending > 0)
                 {
-                    Console.WriteLine($"  {item.Id}. {item.Type.ToUpper()}: {item.CarNumber}{item.PhoneNumber}");
+                    Console.WriteLine("\n⏳ GÖZLƏYƏN QUEUE-LAR:");
+                    var pendingQueues = db.Queues.Where(q => q.Status == "pending").ToList();
+                    foreach (var queue in pendingQueues)
+                    {
+                        Console.WriteLine($"  {queue.Id}. {queue.Type.ToUpper()} - Priority: {queue.Priority}");
+                    }
                 }
+            }
+            else
+            {
+                Console.WriteLine("📋 Heç bir queue məlumatı yoxdur");
             }
         }
     }

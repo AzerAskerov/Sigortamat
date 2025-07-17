@@ -19,7 +19,7 @@ namespace SigortaYoxla
 {
     class Program
     {
-        static async Task Main(string[] args)
+        public static async Task Main(string[] args)
         {
             Console.WriteLine("🚀 SİGORTA YOXLA - HANGFIRE CONSOLE APP + DASHBOARD");
             Console.WriteLine("=".PadRight(55, '='));
@@ -33,7 +33,8 @@ namespace SigortaYoxla
                 .Build();
 
             // Connection string alınması
-            var connectionString = configuration.GetConnectionString("DefaultConnection");
+            var connectionString = configuration.GetConnectionString("DefaultConnection") ?? 
+                "Server=(localdb)\\mssqllocaldb;Database=SigortaYoxlaDb;Trusted_Connection=true;";
             Console.WriteLine("🔗 Verilənlər bazası bağlantısı konfiqurasiya edildi");
 
             // DI konteyner qurulması
@@ -62,11 +63,7 @@ namespace SigortaYoxla
                 Console.WriteLine("ℹ️  LocalDB istifadə edilir. SQL Server Management Studio ilə əlaqə yoxlayın.");
             }
             
-            // QueueRepository-nin initialise edilməsi
-            QueueRepository.Initialize(dbContext);
-            
-            // Test məlumatlarını yüklə
-            QueueRepository.SeedTestData();
+            Console.WriteLine("✅ Sistem hazırdır - manuel queue əlavə edilməsini gözləyir");
 
             // Hangfire konfiqurasiyası - SQL Server
             GlobalConfiguration.Configuration
@@ -98,7 +95,7 @@ namespace SigortaYoxla
             using var server = new BackgroundJobServer(new BackgroundJobServerOptions
             {
                 Queues = new[] { "insurance", "whatsapp", "default" },
-                WorkerCount = 2 // 2 işçi thread
+                WorkerCount = 1 // 1 işçi thread (iki browser açılmasın)
             });
 
             Console.WriteLine("🎯 Hangfire Server başladı");
@@ -120,6 +117,9 @@ namespace SigortaYoxla
             Console.WriteLine("✅ Sistem hazırdır!");
             Console.WriteLine("🌐 Dashboard: http://localhost:5000/hangfire");
             Console.WriteLine("📊 Queue statusunu görmək üçün ENTER basın...");
+            Console.WriteLine("📈 Sığorta statistikası üçün 'S' basın...");
+            Console.WriteLine("📱 WhatsApp statistikası üçün 'W' basın...");
+            Console.WriteLine("🚗 Test maşın nömrəsi əlavə etmək üçün 'T' basın...");
             Console.WriteLine("❌ Sistemi dayandırmaq üçün ESC basın...");
             Console.WriteLine();
 
@@ -168,6 +168,18 @@ namespace SigortaYoxla
                 {
                     QueueRepository.ShowQueueStatus();
                 }
+                else if (key.Key == ConsoleKey.S)
+                {
+                    InsuranceJobRepository.ShowInsuranceStatistics();
+                }
+                else if (key.Key == ConsoleKey.W)
+                {
+                    WhatsAppJobRepository.ShowWhatsAppStatistics();
+                }
+                else if (key.Key == ConsoleKey.T)
+                {
+                    await AddTestCarNumber();
+                }
                 else if (key.Key == ConsoleKey.Escape)
                 {
                     break;
@@ -182,17 +194,17 @@ namespace SigortaYoxla
         /// </summary>
         private static void SetupRecurringJobs()
         {
-            // Sığorta yoxlama job-u - hər dəqiqə
+            // Sadəcə yeni sistem - hər dəqiqə
             RecurringJob.AddOrUpdate<InsuranceJob>(
                 "insurance-check",
                 job => job.ProcessInsuranceQueue(),
                 Cron.Minutely);
 
-            // WhatsApp mesaj job-u - hər 2 dəqiqə  
+            // WhatsApp mesaj job-u - hər 5 dəqiqə  
             RecurringJob.AddOrUpdate<WhatsAppJob>(
                 "whatsapp-send",
                 job => job.ProcessWhatsAppQueue(),
-                "*/2 * * * *"); // Hər 2 dəqiqə
+                "*/5 * * * *"); // Hər 5 dəqiqə
         }
 
         /// <summary>
@@ -205,6 +217,38 @@ namespace SigortaYoxla
             BackgroundJob.Schedule<WhatsAppJob>(job => job.ProcessWhatsAppQueue(), TimeSpan.FromSeconds(10));
             
             Console.WriteLine("🧪 Test job-ları əlavə edildi");
+        }
+
+        /// <summary>
+        /// Test car number əlavə etmək
+        /// </summary>
+        private static async Task AddTestCarNumber()
+        {
+            Console.WriteLine();
+            Console.WriteLine("🚗 Test maşın nömrəsi daxil edin (məs. 10RL047, 90AB123):");
+            Console.Write("Nömrə: ");
+            
+            var carNumber = Console.ReadLine()?.Trim().ToUpper();
+            
+            if (string.IsNullOrEmpty(carNumber))
+            {
+                Console.WriteLine("❌ Boş nömrə daxil edilə bilməz!");
+                return;
+            }
+            
+            try
+            {
+                var queueId = InsuranceJobRepository.CreateInsuranceJob(carNumber);
+                
+                Console.WriteLine($"✅ {carNumber} nömrəsi queue-ya əlavə edildi (Queue ID: {queueId})");
+                Console.WriteLine("🔄 Növbəti recurring job-da emal olunacaq (max 1 dəqiqə)");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Xəta baş verdi: {ex.Message}");
+            }
+            
+            Console.WriteLine();
         }
     }
 

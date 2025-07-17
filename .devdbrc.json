@@ -1,0 +1,17 @@
+{
+  "default": "azure-sql",
+  "connections": {
+    "azure-sql": {
+      "driver": "sqlserver",
+      "server": "sigortayoxla.database.windows.net",
+      "port": 1433,
+      "user": "a.azar1988",
+      "password": "54EhP6.G@RKcp8#",
+      "database": "SigortaYoxlaDb",
+      "options": {
+        "encrypt": true,
+        "trustServerCertificate": true
+      }
+    }
+  }
+}

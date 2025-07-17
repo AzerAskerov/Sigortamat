@@ -24,6 +24,70 @@ Bu komanda:
 2. Nəticələri formatlayır  
 3. WhatsApp mesajları göndərir
 
+## 🗄️ Azure SQL Database Query-ləri
+
+### MCP Server Configuration
+VS Code-da Azure SQL database ilə işləmək üçün MCP server konfiqurasiya edilib:
+
+```json
+{
+    "mcp.servers": {
+        "azure-sql": {
+            "command": "sqlcmd",
+            "args": [
+                "-S", "sigortayoxla.database.windows.net",
+                "-d", "SigortaYoxlaDb", 
+                "-U", "a.azar1988",
+                "-P", "54EhP6.G@RKcp8#",
+                "-Q"
+            ]
+        }
+    },
+    "mcp.enabled": true
+}
+```
+
+### SQL Query Nümunələri
+
+#### Command Line ilə Query:
+```bash
+# Bütün cədvələri göstər
+sqlcmd -S sigortayoxla.database.windows.net -d SigortaYoxlaDb -U a.azar1988 -P "54EhP6.G@RKcp8#" -Q "SELECT name FROM sys.tables ORDER BY name"
+
+# QueueItems table-ından son 5 record
+sqlcmd -S sigortayoxla.database.windows.net -d SigortaYoxlaDb -U a.azar1988 -P "54EhP6.G@RKcp8#" -Q "SELECT TOP 5 Id, Type, CarNumber, PhoneNumber, IsProcessed, CreatedAt FROM QueueItems ORDER BY CreatedAt DESC"
+
+# Type-a görə statistika
+sqlcmd -S sigortayoxla.database.windows.net -d SigortaYoxlaDb -U a.azar1988 -P "54EhP6.G@RKcp8#" -Q "SELECT Type, COUNT(*) as Count FROM QueueItems GROUP BY Type"
+```
+
+#### VS Code SQL Extension ilə:
+1. `Ctrl+Shift+P` → `MSSQL: Connect`
+2. Server: `sigortayoxla.database.windows.net`
+3. Database: `SigortaYoxlaDb`
+4. User: `a.azar1988`
+5. SQL query yazın və `Ctrl+Shift+E` ilə icra edin
+
+#### AI Chat ilə SQL Query:
+VS Code-da MCP server aktiv olduqda AI chat-də belə suallar verə bilərsiniz:
+- "Azure SQL database-də QueueItems table-ından son 10 record-u göstər"
+- "WhatsApp type-ında neçə pending job var?"
+- "Bu gün yaradılmış bütün queue item-ləri göstər"
+
+### Database Schema
+```sql
+-- QueueItems table columns:
+Id (int) - Primary key
+Type (nvarchar) - 'insurance' və ya 'whatsapp' 
+CarNumber (nvarchar) - Avtomobil nömrəsi
+PhoneNumber (nvarchar) - Telefon nömrəsi
+Message (nvarchar) - WhatsApp mesajı
+IsProcessed (bit) - İşlənib/işlənməyib
+CreatedAt (datetime2) - Yaradılma tarixi
+ProcessedAt (datetime2) - İşlənmə tarixi
+Error (nvarchar) - Xəta mesajı
+```
+
 ### Ayrı-ayrılıqda WhatsApp İstifadəsi
 
 #### Tək mesaj göndər:
@@ -51,6 +115,10 @@ sigortaYoxla/
 ├── Program.cs              # Əsas proqram
 ├── SigortaChecker.cs       # Selenium sığorta yoxlayıcısı
 ├── WhatsAppService.cs      # WhatsApp xidməti
+├── azure-sql-test.sql      # SQL query nümunələri
+├── .vscode/
+│   ├── settings.json       # MCP server konfiqurasiyası
+│   └── mssql-connections.json # SQL Server bağlantıları
 ├── whatsapp-bot/
 │   ├── package.json        # Node.js dependencies
 │   ├── whatsapp-sender.js  # WhatsApp bot
@@ -120,6 +188,15 @@ rm -rf node_modules
 npm install
 ```
 
+### SQL Connection Issues
+```bash
+# Test Azure SQL connection
+sqlcmd -S sigortayoxla.database.windows.net -d SigortaYoxlaDb -U a.azar1988 -P "54EhP6.G@RKcp8#" -Q "SELECT 1"
+
+# Check if SQL Server extension installed
+code --list-extensions | findstr mssql
+```
+
 ## 📞 Dəstək
 
 Hər hansı problem olduqda issue açın və ya pull request göndərin.
@@ -130,3 +207,4 @@ Hər hansı problem olduqda issue açın və ya pull request göndərin.
 - WhatsApp Business API qaydalarına riayət edin  
 - Rate limiting-ə diqqət edin (spam kimi qəbul edilə bilər)
 - Auth məlumatlarını (.auth_data/) git-ə commit etməyin
+- Database credentials-ı production-da environment variables ilə idarə edin

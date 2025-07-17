@@ -2,5 +2,30 @@
     "github.copilot.chat.agent.terminal.allowList": {
         "dotnet build": true,
         "dotnet run": true
-    }
+    },
+    "mssql.connections": [
+        {
+            "server": "sigortayoxla.database.windows.net",
+            "database": "SigortaYoxlaDb",
+            "user": "a.azar1988",
+            "password": "",
+            "authenticationType": "SqlLogin",
+            "profileName": "Azure SigortaYoxla",
+            "encrypt": "Mandatory",
+            "trustServerCertificate": false
+        }
+    ],
+    "mcp.servers": {
+        "azure-sql": {
+            "command": "sqlcmd",
+            "args": [
+                "-S", "sigortayoxla.database.windows.net",
+                "-d", "SigortaYoxlaDb", 
+                "-U", "a.azar1988",
+                "-P", "54EhP6.G@RKcp8#",
+                "-Q"
+            ]
+        }
+    },
+    "mcp.enabled": true
 }
