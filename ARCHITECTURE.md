@@ -322,3 +322,22 @@ Sistem başlayanda avtomatik olaraq test məlumatları yüklənir:
 - **Safe Shutdown**: Graceful application termination
 
 Bu arxitektura layihənin bütün komponentlərini əhatə edir və gələcək inkişaf üçün möhkəm baza təşkil edir. 🎯
+
+# SigortaYoxla - Arxitektura
+
+## Stack
+- .NET 9.0
+- Entity Framework Core 
+- Hangfire
+- Azure SQL Database
+
+## Komponentlər
+- Console App
+- Background Jobs (Hangfire)
+- Database (Azure SQL)
+- Dashboard (http://localhost:5000/hangfire)
+
+## Queue Sistemi
+- Persistent queue (SQL)
+- Insurance job - hər dəqiqə
+- WhatsApp job - hər 2 dəqiqə

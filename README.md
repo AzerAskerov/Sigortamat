@@ -1,53 +1,20 @@
-# SigortaYoxla - Avtomobil Sığorta Yoxlayıcısı + WhatsApp Bot
+# SigortaYoxla
 
-Bu layihə avtomobil nömrələrinə görə sığorta məlumatlarını yoxlayır və nəticələri WhatsApp vasitəsilə göndərir.
+Sığorta yoxlaması və WhatsApp mesaj avtomatlaşdırması.
 
-## 🚀 Xüsusiyyətlər
+## Başlatma
+1. `appsettings.json`-da connection string qur
+2. `dotnet run`
+3. Dashboard: http://localhost:5000/hangfire
 
-- ✅ Bulk avtomobil nömrəsi yoxlaması (Selenium ilə)
-- 📱 WhatsApp vasitəsilə avtomatik mesaj göndərmə
-- 🔄 Queue və təkrarlanan işlər üçün hazır
-- 📊 Detailed reporting və loglar
-
-## 📋 Tələblər
-
-### C# Hissəsi
-- .NET 9.0+
+## Stack
+- .NET 9.0 + EF Core
+- Hangfire + Azure SQL
 - Selenium WebDriver
-- Chrome browser
-
-### WhatsApp Bot Hissəsi  
-- Node.js 16+
-- npm
-
-## ⚙️ Quraşdırma
-
-### 1. C# Proyektini hazırlayın
-```bash
-cd sigortaYoxla
-dotnet restore
-dotnet build
-```
-
-### 2. WhatsApp Bot-u quraşdırın
-```bash
-cd whatsapp-bot
-npm install
-```
-
-### 3. WhatsApp-ı fəallaşdırın
-İlk dəfə işlədərkən QR kod ilə WhatsApp-ınızı qoşmalısınız:
-
-```bash
-cd whatsapp-bot
-node whatsapp-sender.js test
-```
-
-QR kodu skan edin və "WhatsApp Client hazırdır!" mesajını gözləyin.
 
 ## 🎯 İstifadə
 
-### Əsas C# Proqramı (Full Pipeline)
+### Əsas Proqram (Full Pipeline)
 ```bash
 dotnet run
 ```
@@ -81,9 +48,9 @@ node whatsapp-sender.js test
 
 ```
 sigortaYoxla/
-├── Program.cs              # Əsas C# proqramı
+├── Program.cs              # Əsas proqram
 ├── SigortaChecker.cs       # Selenium sığorta yoxlayıcısı
-├── WhatsAppService.cs      # C# WhatsApp xidməti
+├── WhatsAppService.cs      # WhatsApp xidməti
 ├── whatsapp-bot/
 │   ├── package.json        # Node.js dependencies
 │   ├── whatsapp-sender.js  # WhatsApp bot
