@@ -1,6 +1,6 @@
 using System;
 
-namespace SigortaYoxla.Models
+namespace Sigortamat.Models
 {
     /// <summary>
     /// WhatsApp mesaj göndərmə işləri üçün detallı model

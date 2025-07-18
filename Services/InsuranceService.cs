@@ -1,6 +1,6 @@
 using System;
 using System.Threading.Tasks;
-using SigortaYoxla.Models;
+using Sigortamat.Models;
 using OpenQA.Selenium;
 using OpenQA.Selenium.Chrome;
 using OpenQA.Selenium.Support.UI;
@@ -8,7 +8,7 @@ using System.Globalization;
 using Microsoft.Extensions.Configuration;
 using System.Linq;
 
-namespace SigortaYoxla.Services
+namespace Sigortamat.Services
 {
     /// <summary>
     /// Sığorta yoxlama service - Real Selenium-based web scraping

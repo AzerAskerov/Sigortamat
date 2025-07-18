@@ -2,10 +2,10 @@ using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using Hangfire;
-using SigortaYoxla.Services;
+using Sigortamat.Services;
 using Microsoft.Extensions.Configuration;
 
-namespace SigortaYoxla.Jobs
+namespace Sigortamat.Jobs
 {
     /// <summary>
     /// Sığorta yoxlama job-u - Yeni normallaşdırılmış sistem

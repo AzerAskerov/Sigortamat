@@ -2,10 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.EntityFrameworkCore;
-using SigortaYoxla.Data;
-using SigortaYoxla.Models;
+using Sigortamat.Data;
+using Sigortamat.Models;
 
-namespace SigortaYoxla.Services
+namespace Sigortamat.Services
 {
     /// <summary>
     /// Queue repository - Yalnız yeni queue sistemi

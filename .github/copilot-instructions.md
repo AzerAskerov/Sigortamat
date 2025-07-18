@@ -1,7 +1,7 @@
-# AI Agent Instructions for SigortaYoxla
+# AI Agent Instructions for Sigortamat
 
 ## Project Overview
-**SigortaYoxla** is an automated insurance checker system that uses Hangfire background jobs to:
+**Sigortamat** is an automated insurance checker system that uses Hangfire background jobs to:
 1. Check car insurance status via web scraping with Selenium WebDriver
 2. Send notifications via WhatsApp Web.js
 3. Manage tasks through SQL Server queue with web dashboard
@@ -55,7 +55,7 @@ dotnet ef database update
 
 ## Project Structure
 ```
-sigortaYoxla/
+sigortamat/
 ├── Program.cs              # Main entry point + Hangfire setup
 ├── appsettings.json       # Configuration (DB connections, Chrome settings)
 │
@@ -153,13 +153,16 @@ sigortaYoxla/
 ### Database Operations
 ```powershell
 # Check InsuranceJobs table
-sqlcmd -S sigortayoxla.database.windows.net -d SigortaYoxlaDb -U a.azar1988 -P "54EhP6.G@RKcp8#" -Q "SELECT TOP 5 CarNumber, Company, VehicleBrand, VehicleModel, Status, CreatedAt FROM InsuranceJobs ORDER BY CreatedAt DESC"
+sqlcmd -S sigortayoxla.database.windows.net -d SigortamatDb -U a.azar1988 -P "54EhP6.G@RKcp8#" -Q "SELECT TOP 5 CarNumber, Company, VehicleBrand, VehicleModel, Status, CreatedAt FROM InsuranceJobs ORDER BY CreatedAt DESC"
 
 # Check Queue status
-sqlcmd -S sigortayoxla.database.windows.net -d SigortaYoxlaDb -U a.azar1988 -P "54EhP6.G@RKcp8#" -Q "SELECT Type, Status, COUNT(*) as Count FROM Queues GROUP BY Type, Status"
+sqlcmd -S sigortayoxla.database.windows.net -d SigortamatDb -U a.azar1988 -P "54EhP6.G@RKcp8#" -Q "SELECT Type, Status, COUNT(*) as Count FROM Queues GROUP BY Type, Status"
 
 # Add test insurance job
-sqlcmd -S sigortayoxla.database.windows.net -d SigortaYoxlaDb -U a.azar1988 -P "54EhP6.G@RKcp8#" -Q "INSERT INTO Queues (Type, Status, Priority) VALUES ('insurance', 'pending', 1); DECLARE @QueueId INT = SCOPE_IDENTITY(); INSERT INTO InsuranceJobs (QueueId, CarNumber, Status) VALUES (@QueueId, '10RL096', 'pending');"
+sqlcmd -S sigortayoxla.database.windows.net -d SigortamatDb -U a.azar1988 -P "54EhP6.G@RKcp8#" -Q "INSERT INTO Queues (Type, Status, Priority) VALUES ('insurance', 'pending', 1); DECLARE @QueueId INT = SCOPE_IDENTITY(); INSERT INTO InsuranceJobs (QueueId, CarNumber, Status) VALUES (@QueueId, '10RL096', 'pending');"
+
+# Add test WhatsApp job
+sqlcmd -S sigortayoxla.database.windows.net -d SigortamatDb -U a.azar1988 -P "54EhP6.G@RKcp8#" -Q "INSERT INTO Queues (Type, Status, Priority) VALUES ('whatsapp', 'pending', 1); DECLARE @QueueId INT = SCOPE_IDENTITY(); INSERT INTO WhatsAppJobs (QueueId, PhoneNumber, MessageText, DeliveryStatus) VALUES (@QueueId, '994707877878', '🎉 Test mesajı!', 'pending');"
 ```
 
 ### Development Tips
@@ -187,6 +190,9 @@ sqlcmd -S sigortayoxla.database.windows.net -d SigortaYoxlaDb -U a.azar1988 -P "
 - Database connection pooling via EF Core
 
 ## Recent Updates
+- **[2025-07-18]** Project renamed from "SigortaYoxla" to "Sigortamat" - includes all namespaces, project files, and database name updates
+- **[2025-07-18]** Legacy references remain in Migration files and .env configuration - intentionally preserved for EF Core compatibility
+- **[2025-07-18]** WhatsApp queue testing via direct SQL commands - successfully created test queue with phone 994707877878
 - **Removed PolicyNumber and ExpiryDate fields** from InsuranceJob model
 - **Removed QueueItems table** - migrated to new Queue system
 - **Simplified InsuranceResult model** - removed unused fields
@@ -194,6 +200,12 @@ sqlcmd -S sigortayoxla.database.windows.net -d SigortaYoxlaDb -U a.azar1988 -P "
 - **Single worker configuration** - prevents browser conflicts
 - **Added Code Review Guidelines** - for better code quality and maintenance
 - **Updated WhatsApp script references** - now using debug-whatsapp.js instead of whatsapp-sender.js
+
+## Legacy References (Intentionally Preserved)
+- **Migration files**: Contain old "SigortaYoxla" references - do not modify these as EF Core requires historical accuracy
+- **.env file**: Contains "sigortayoxla" in server name and some connection strings - preserved for database connectivity
+- **Database server name**: sigortayoxla.database.windows.net remains unchanged for Azure SQL connection
+- **Git repository**: Repository name remains "sigortaYoxla" on GitHub for historical continuity
 
 ## Updating These Instructions
 

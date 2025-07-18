@@ -297,7 +297,7 @@ node whatsapp-sender.js bulk messages.json
                 
             case 'test':
                 console.log('🧪 Test mesajı göndərilir...');
-                const testResult = await whatsApp.sendMessage('0501234567', 'Test mesajı - SigortaYoxla sistemi');
+                const testResult = await whatsApp.sendMessage('0501234567', 'Test mesajı - Sigortamat sistemi');
                 console.log('📋 Test nəticəsi:', testResult);
                 break;
                 

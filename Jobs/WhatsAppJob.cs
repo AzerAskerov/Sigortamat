@@ -2,9 +2,9 @@ using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using Hangfire;
-using SigortaYoxla.Services;
+using Sigortamat.Services;
 
-namespace SigortaYoxla.Jobs
+namespace Sigortamat.Jobs
 {
     /// <summary>
     /// WhatsApp mesaj göndərmə job-u - Yeni normallaşdırılmış sistem

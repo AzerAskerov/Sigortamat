@@ -11,17 +11,17 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using SigortaYoxla.Data;
-using SigortaYoxla.Jobs;
-using SigortaYoxla.Services;
+using Sigortamat.Data;
+using Sigortamat.Jobs;
+using Sigortamat.Services;
 
-namespace SigortaYoxla
+namespace Sigortamat
 {
     class Program
     {
         public static async Task Main(string[] args)
         {
-            Console.WriteLine("🚀 SİGORTA YOXLA - HANGFIRE CONSOLE APP + DASHBOARD");
+            Console.WriteLine("🚀 SİGORTAMAT - AVTOMATLAŞDIRILMIŞ SİGORTA SİSTEMİ");
             Console.WriteLine("=".PadRight(55, '='));
             Console.WriteLine($"📅 Başlanğıc: {DateTime.Now:dd.MM.yyyy HH:mm:ss}");
             Console.WriteLine();
@@ -34,7 +34,7 @@ namespace SigortaYoxla
 
             // Connection string alınması
             var connectionString = configuration.GetConnectionString("DefaultConnection") ?? 
-                "Server=(localdb)\\mssqllocaldb;Database=SigortaYoxlaDb;Trusted_Connection=true;";
+                "Server=(localdb)\\mssqllocaldb;Database=SigortamatDb;Trusted_Connection=true;";
             Console.WriteLine("🔗 Verilənlər bazası bağlantısı konfiqurasiya edildi");
 
             // DI konteyner qurulması

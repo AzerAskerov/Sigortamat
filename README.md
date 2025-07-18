@@ -1,6 +1,6 @@
-# SigortaYoxla
+# Sigortamat
 
-Sığorta yoxlaması və WhatsApp mesaj avtomatlaşdırması.
+Avtomatlaşdırılmış sığorta sistemi - Sığorta yoxlaması və WhatsApp mesaj avtomatlaşdırması.
 
 ## Başlatma
 1. `appsettings.json`-da connection string qur
@@ -36,7 +36,7 @@ VS Code-da Azure SQL database ilə işləmək üçün MCP server konfiqurasiya e
             "command": "sqlcmd",
             "args": [
                 "-S", "sigortayoxla.database.windows.net",
-                "-d", "SigortaYoxlaDb", 
+                "-d", "SigortamatDb", 
                 "-U", "a.azar1988",
                 "-P", "54EhP6.G@RKcp8#",
                 "-Q"
@@ -52,19 +52,19 @@ VS Code-da Azure SQL database ilə işləmək üçün MCP server konfiqurasiya e
 #### Command Line ilə Query:
 ```bash
 # Bütün cədvələri göstər
-sqlcmd -S sigortayoxla.database.windows.net -d SigortaYoxlaDb -U a.azar1988 -P "54EhP6.G@RKcp8#" -Q "SELECT name FROM sys.tables ORDER BY name"
+sqlcmd -S sigortayoxla.database.windows.net -d SigortamatDb -U a.azar1988 -P "54EhP6.G@RKcp8#" -Q "SELECT name FROM sys.tables ORDER BY name"
 
 # QueueItems table-ından son 5 record
-sqlcmd -S sigortayoxla.database.windows.net -d SigortaYoxlaDb -U a.azar1988 -P "54EhP6.G@RKcp8#" -Q "SELECT TOP 5 Id, Type, CarNumber, PhoneNumber, IsProcessed, CreatedAt FROM QueueItems ORDER BY CreatedAt DESC"
+sqlcmd -S sigortayoxla.database.windows.net -d SigortamatDb -U a.azar1988 -P "54EhP6.G@RKcp8#" -Q "SELECT TOP 5 Id, Type, CarNumber, PhoneNumber, IsProcessed, CreatedAt FROM QueueItems ORDER BY CreatedAt DESC"
 
 # Type-a görə statistika
-sqlcmd -S sigortayoxla.database.windows.net -d SigortaYoxlaDb -U a.azar1988 -P "54EhP6.G@RKcp8#" -Q "SELECT Type, COUNT(*) as Count FROM QueueItems GROUP BY Type"
+sqlcmd -S sigortayoxla.database.windows.net -d SigortamatDb -U a.azar1988 -P "54EhP6.G@RKcp8#" -Q "SELECT Type, COUNT(*) as Count FROM QueueItems GROUP BY Type"
 ```
 
 #### VS Code SQL Extension ilə:
 1. `Ctrl+Shift+P` → `MSSQL: Connect`
 2. Server: `sigortayoxla.database.windows.net`
-3. Database: `SigortaYoxlaDb`
+3. Database: `SigortamatDb`
 4. User: `a.azar1988`
 5. SQL query yazın və `Ctrl+Shift+E` ilə icra edin
 
@@ -111,7 +111,7 @@ node whatsapp-sender.js test
 ## 📁 Fayl Strukturu
 
 ```
-sigortaYoxla/
+sigortamat/
 ├── Program.cs              # Əsas proqram
 ├── SigortaChecker.cs       # Selenium sığorta yoxlayıcısı
 ├── WhatsAppService.cs      # WhatsApp xidməti
@@ -191,7 +191,7 @@ npm install
 ### SQL Connection Issues
 ```bash
 # Test Azure SQL connection
-sqlcmd -S sigortayoxla.database.windows.net -d SigortaYoxlaDb -U a.azar1988 -P "54EhP6.G@RKcp8#" -Q "SELECT 1"
+sqlcmd -S sigortayoxla.database.windows.net -d SigortamatDb -U a.azar1988 -P "54EhP6.G@RKcp8#" -Q "SELECT 1"
 
 # Check if SQL Server extension installed
 code --list-extensions | findstr mssql

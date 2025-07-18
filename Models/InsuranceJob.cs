@@ -1,6 +1,6 @@
 using System;
 
-namespace SigortaYoxla.Models
+namespace Sigortamat.Models
 {
     /// <summary>
     /// Sığorta yoxlama işləri üçün detallı model - ISB.az real data-ya uyğun

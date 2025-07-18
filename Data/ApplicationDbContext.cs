@@ -1,8 +1,8 @@
 using System;
 using Microsoft.EntityFrameworkCore;
-using SigortaYoxla.Models;
+using Sigortamat.Models;
 
-namespace SigortaYoxla.Data
+namespace Sigortamat.Data
 {
     public class ApplicationDbContext : DbContext
     {

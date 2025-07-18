@@ -5,6 +5,8 @@
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>disable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <AssemblyName>Sigortamat</AssemblyName>
+    <RootNamespace>Sigortamat</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>

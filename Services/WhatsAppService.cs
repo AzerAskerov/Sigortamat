@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
 
-namespace SigortaYoxla.Services
+namespace Sigortamat.Services
 {
     /// <summary>
     /// WhatsApp mesaj göndərmə service

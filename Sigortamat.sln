@@ -2,7 +2,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.5.2.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "sigortaYoxla", "sigortaYoxla.csproj", "{4D2B4136-F0CF-FD7E-A298-7D30D4FC72CD}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sigortamat", "Sigortamat.csproj", "{4D2B4136-F0CF-FD7E-A298-7D30D4FC72CD}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

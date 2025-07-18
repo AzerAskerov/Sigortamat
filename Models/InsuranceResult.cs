@@ -1,6 +1,6 @@
 using System;
 
-namespace SigortaYoxla.Models
+namespace Sigortamat.Models
 {
     /// <summary>
     /// Sığorta yoxlama nəticəsi üçün model
