@@ -82,7 +82,7 @@ sigortaYoxla/
 │
 ├── whatsapp-bot/          # Node.js WhatsApp automation
 │   ├── package.json
-│   ├── whatsapp-sender.js
+│   ├── debug-whatsapp.js  # WhatsApp integration script
 │   └── auth_data/         # WhatsApp session storage
 │
 └── Migrations/            # EF Core database migrations
@@ -119,6 +119,34 @@ sigortaYoxla/
 - WhatsApp Web.js automation
 - Session persistence
 - Message queue with retry logic
+
+## Code Review Guidelines
+
+### General Principles
+- Check if HTML parsing handles all possible response formats from ISB.az
+- Verify error handling in Selenium automation
+- Ensure queue operations are transactional
+- Validate proper browser cleanup after operations
+
+### Service Classes
+- **InsuranceService**: Review HTML selectors for potential website changes
+- **WhatsAppService**: Verify process cleanup and proper exit code handling
+- **QueueRepository**: Check transaction handling and retry logic
+
+### Job Processing
+- Verify jobs don't exceed timeout limits
+- Ensure proper status updates (pending → processing → completed/failed)
+- Check error handling and retry mechanisms
+
+### Browser Automation
+- Validate element selectors are robust
+- Check for proper resource cleanup
+- Verify error handling for network timeouts
+
+### Database Operations
+- Ensure proper indexing for queue queries
+- Verify transaction handling in repository methods
+- Check connection pooling configuration
 
 ## Common Commands
 
@@ -164,3 +192,24 @@ sqlcmd -S sigortayoxla.database.windows.net -d SigortaYoxlaDb -U a.azar1988 -P "
 - **Simplified InsuranceResult model** - removed unused fields
 - **Updated HTML parsing** - focus on company and vehicle data only
 - **Single worker configuration** - prevents browser conflicts
+- **Added Code Review Guidelines** - for better code quality and maintenance
+- **Updated WhatsApp script references** - now using debug-whatsapp.js instead of whatsapp-sender.js
+
+## Updating These Instructions
+
+When making significant changes to the codebase, please follow these steps:
+
+1. **Update the relevant sections** in this instructions file to reflect the current architecture
+2. **Add a bullet point to the "Recent Updates" section** describing the change
+3. **Include the date** of the update in the bullet point
+4. **Remove outdated entries** from the "Recent Updates" section after they become well-established parts of the system
+5. **Ensure any removed features** are also removed from all other sections of this document
+
+Example format for "Recent Updates" section:
+```
+## Recent Updates
+- **[2025-07-18]** Added new feature X - improves performance by 20%
+- **[2025-07-15]** Removed deprecated feature Y - no longer needed
+```
+
+This ensures the documentation stays current and highlights recent changes for developers.
