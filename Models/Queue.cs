@@ -14,6 +14,7 @@ namespace Sigortamat.Models
         public DateTime? StartedAt { get; set; }
         public DateTime? CompletedAt { get; set; }
         public DateTime? ProcessedAt { get; set; }
+        public DateTime? ProcessAfter { get; set; } // İşə yalnız bu vaxtdan sonra başla
         public int Priority { get; set; } = 0;
         public int RetryCount { get; set; } = 0;
         public string? ErrorMessage { get; set; }

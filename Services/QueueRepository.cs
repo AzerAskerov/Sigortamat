@@ -19,19 +19,29 @@ namespace Sigortamat.Services
         /// </summary>
         public static int AddToQueue(string type, int priority = 0)
         {
+            return AddToQueue(type, priority, null);
+        }
+
+        /// <summary>
+        /// Yeni queue elementi yarat - ProcessAfter ilə
+        /// </summary>
+        public static int AddToQueue(string type, int priority = 0, DateTime? processAfter = null)
+        {
             using var db = new ApplicationDbContextFactory().CreateDbContext(new string[0]);
             var queue = new Queue
             {
                 Type = type,
                 Status = "pending",
                 Priority = priority,
+                ProcessAfter = processAfter,
                 CreatedAt = DateTime.Now
             };
             
             db.Queues.Add(queue);
             db.SaveChanges();
             
-            Console.WriteLine($"🔗 Queue yaradıldı: {type} (ID: {queue.Id}, Priority: {priority})");
+            string processAfterInfo = processAfter.HasValue ? $" (Process After: {processAfter:dd.MM.yyyy HH:mm})" : "";
+            Console.WriteLine($"🔗 Queue yaradıldı: {type} (ID: {queue.Id}, Priority: {priority}){processAfterInfo}");
             return queue.Id;
         }
 
@@ -87,13 +97,17 @@ namespace Sigortamat.Services
         }
 
         /// <summary>
-        /// Gözləyən queue elementlərini gətir
+        /// Gözləyən queue elementlərini gətir - ProcessAfter sahəsini nəzərə alır
         /// </summary>
         public static List<Queue> GetPendingQueues(string type, int limit = 10)
         {
             using var db = new ApplicationDbContextFactory().CreateDbContext(new string[0]);
+            var now = DateTime.Now;
+            
             return db.Queues
-                       .Where(q => q.Type == type && q.Status == "pending")
+                       .Where(q => q.Type == type && 
+                                 q.Status == "pending" &&
+                                 (q.ProcessAfter == null || q.ProcessAfter <= now))
                        .OrderBy(q => q.Priority)
                        .ThenBy(q => q.CreatedAt)
                        .Take(limit)
@@ -128,10 +142,27 @@ namespace Sigortamat.Services
                 if (newPending > 0)
                 {
                     Console.WriteLine("\n⏳ GÖZLƏYƏN QUEUE-LAR:");
-                    var pendingQueues = db.Queues.Where(q => q.Status == "pending").ToList();
+                    var pendingQueues = db.Queues.Where(q => q.Status == "pending")
+                                                 .OrderBy(q => q.Priority)
+                                                 .ThenBy(q => q.CreatedAt)
+                                                 .ToList();
+                    
                     foreach (var queue in pendingQueues)
                     {
-                        Console.WriteLine($"  {queue.Id}. {queue.Type.ToUpper()} - Priority: {queue.Priority}");
+                        string processAfterInfo = "";
+                        if (queue.ProcessAfter.HasValue)
+                        {
+                            if (queue.ProcessAfter > DateTime.Now)
+                            {
+                                processAfterInfo = $" [⏰ {queue.ProcessAfter:dd.MM.yyyy HH:mm}]";
+                            }
+                            else
+                            {
+                                processAfterInfo = " [✅ Hazır]";
+                            }
+                        }
+                        
+                        Console.WriteLine($"  {queue.Id}. {queue.Type.ToUpper()} - Priority: {queue.Priority}{processAfterInfo}");
                     }
                 }
             }
