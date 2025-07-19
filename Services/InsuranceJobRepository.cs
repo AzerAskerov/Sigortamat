@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Sigortamat.Data;
 using Sigortamat.Models;
@@ -27,6 +28,7 @@ namespace Sigortamat.Services
                 VehicleBrand = vehicleBrand,
                 VehicleModel = vehicleModel,
                 Status = "pending",
+                CheckDate = DateTime.Now,  // CheckDate əlavə edildi
                 CreatedAt = DateTime.Now
             };
             db.InsuranceJobs.Add(insuranceJob);
@@ -34,6 +36,16 @@ namespace Sigortamat.Services
             
             Console.WriteLine($"🚗 Yeni sığorta yoxlama işi yaradıldı: {carNumber} (Queue ID: {queueId})");
             return queueId;
+        }
+
+        /// <summary>
+        /// InsuranceJob-u yenilə - async
+        /// </summary>
+        public static async Task UpdateInsuranceJobAsync(InsuranceJob job)
+        {
+            using var db = new ApplicationDbContextFactory().CreateDbContext(new string[0]);
+            db.InsuranceJobs.Update(job);
+            await db.SaveChangesAsync();
         }
         
         /// <summary>

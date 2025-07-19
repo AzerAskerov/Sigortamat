@@ -37,9 +37,10 @@ dotnet ef database update
 ## Current System Architecture
 
 ### Queue Management
-- Three queue types: `"insurance"` and `"whatsapp"` in `Queue.Type`
+- Three queue types: `"insurance"`, `"whatsapp"`, and `"renewal"` in `Queue.Type`
 - Status flow: `"pending"` → `"processing"` → `"completed"` or `"failed"`
 - Priority support with retry mechanisms
+- **ProcessAfter field** for scheduling future job processing (ISB.az daily limit management)
 - **QueueItems table has been removed** - only use new Queue system
 
 ### Insurance Processing
@@ -70,11 +71,13 @@ sigortamat/
 │   └── InsuranceResult.cs  # Insurance result model
 │
 ├── Services/
-│   ├── QueueRepository.cs         # Queue management operations
-│   ├── InsuranceService.cs        # Insurance checking with Selenium
-│   ├── InsuranceJobRepository.cs  # Insurance job operations
-│   ├── WhatsAppService.cs         # WhatsApp integration
-│   └── WhatsAppJobRepository.cs   # WhatsApp job operations
+│   ├── QueueRepository.cs              # Queue management operations
+│   ├── InsuranceService.cs             # Insurance checking with Selenium
+│   ├── InsuranceJobRepository.cs       # Insurance job operations
+│   ├── WhatsAppService.cs              # WhatsApp integration
+│   ├── WhatsAppJobRepository.cs        # WhatsApp job operations
+│   ├── RenewalTrackingService.cs       # Insurance renewal date tracking
+│   └── NotificationService.cs          # User notification management
 │
 ├── Jobs/
 │   ├── InsuranceJob.cs    # Background job for insurance checking
@@ -92,13 +95,19 @@ sigortamat/
 
 ### Main Tables:
 1. **Queues** - Central queue management
-   - Id, Type, Status, Priority, CreatedAt, StartedAt, CompletedAt, ErrorMessage, RetryCount
+   - Id, Type, Status, Priority, CreatedAt, StartedAt, CompletedAt, ErrorMessage, RetryCount, ProcessAfter
 
 2. **InsuranceJobs** - Insurance job details
-   - Id, QueueId (FK), CarNumber, Company, VehicleBrand, VehicleModel, Status, ResultText, ProcessingTimeMs, CreatedAt, ProcessedAt
+   - Id, QueueId (FK), CarNumber, Company, VehicleBrand, VehicleModel, Status, ResultText, ProcessingTimeMs, CheckDate, InsuranceRenewalTrackingId, CreatedAt, ProcessedAt
 
 3. **WhatsAppJobs** - WhatsApp job details  
    - Id, QueueId (FK), PhoneNumber, MessageText, DeliveryStatus, ErrorDetails, SentAt, CreatedAt
+
+4. **Users** - User data and renewal date estimates
+   - Id, CarNumber, PhoneNumber, EstimatedRenewalDay, EstimatedRenewalMonth, LastConfirmedRenewalDate, NotificationEnabled, CreatedAt, UpdatedAt
+
+5. **InsuranceRenewalTracking** - Insurance renewal date tracking
+   - Id, UserId (FK), CurrentPhase, LastCheckDate, NextCheckDate, ChecksPerformed, LastCheckResult, CreatedAt, UpdatedAt
 
 ## Key Features
 
@@ -119,6 +128,14 @@ sigortamat/
 - WhatsApp Web.js automation
 - Session persistence
 - Message queue with retry logic
+
+### Insurance Renewal Tracking
+- **Multi-phase tracking system** to determine insurance renewal dates
+- Phase flow: `"Initial"` → `"YearSearch"` → `"MonthSearch"` → `"FinalCheck"` → `"Completed"`
+- Binary search algorithm to efficiently determine renewal dates
+- ISB.az daily limit management with scheduled processing
+- User notification planning based on discovered renewal dates
+- Automatic job rescheduling when daily limits are exceeded
 
 ## Code Review Guidelines
 
@@ -163,6 +180,12 @@ sqlcmd -S sigortayoxla.database.windows.net -d SigortamatDb -U a.azar1988 -P "54
 
 # Add test WhatsApp job
 sqlcmd -S sigortayoxla.database.windows.net -d SigortamatDb -U a.azar1988 -P "54EhP6.G@RKcp8#" -Q "INSERT INTO Queues (Type, Status, Priority) VALUES ('whatsapp', 'pending', 1); DECLARE @QueueId INT = SCOPE_IDENTITY(); INSERT INTO WhatsAppJobs (QueueId, PhoneNumber, MessageText, DeliveryStatus) VALUES (@QueueId, '994707877878', '🎉 Test mesajı!', 'pending');"
+
+# Check renewal tracking status
+sqlcmd -S sigortayoxla.database.windows.net -d SigortamatDb -U a.azar1988 -P "54EhP6.G@RKcp8#" -Q "SELECT u.CarNumber, t.CurrentPhase, t.ChecksPerformed, u.EstimatedRenewalDay, u.EstimatedRenewalMonth FROM Users u JOIN InsuranceRenewalTracking t ON u.Id = t.UserId ORDER BY t.CreatedAt DESC"
+
+# Add test renewal tracking
+sqlcmd -S sigortayoxla.database.windows.net -d SigortamatDb -U a.azar1988 -P "54EhP6.G@RKcp8#" -Q "INSERT INTO Users (CarNumber) VALUES ('10RL033'); DECLARE @UserId INT = SCOPE_IDENTITY(); INSERT INTO InsuranceRenewalTracking (UserId, CurrentPhase) VALUES (@UserId, 'Initial');"
 ```
 
 ### Development Tips
@@ -190,6 +213,11 @@ sqlcmd -S sigortayoxla.database.windows.net -d SigortamatDb -U a.azar1988 -P "54
 - Database connection pooling via EF Core
 
 ## Recent Updates
+- **[2025-07-19]** Added insurance renewal tracking system with multi-phase approach (Initial → YearSearch → MonthSearch → FinalCheck → Completed)
+- **[2025-07-19]** Added ProcessAfter field to Queue model for future job scheduling and ISB.az daily limit management
+- **[2025-07-19]** Implemented binary search algorithm for determining insurance renewal dates efficiently
+- **[2025-07-19]** Created Users and InsuranceRenewalTracking tables for renewal date tracking and user management
+- **[2025-07-19]** Added RenewalTrackingService and NotificationService for comprehensive renewal management
 - **[2025-07-18]** Project renamed from "SigortaYoxla" to "Sigortamat" - includes all namespaces, project files, and database name updates
 - **[2025-07-18]** Legacy references remain in Migration files and .env configuration - intentionally preserved for EF Core compatibility
 - **[2025-07-18]** WhatsApp queue testing via direct SQL commands - successfully created test queue with phone 994707877878

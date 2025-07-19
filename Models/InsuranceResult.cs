@@ -13,6 +13,8 @@ namespace Sigortamat.Models
         public string? OwnerName { get; set; }
         public decimal? Amount { get; set; }
         public string? ErrorMessage { get; set; }
+        public string? ResultText { get; set; } // For different result types: "Sığorta məlumatları tapıldı", "Məlumat tapılmadı", "DailyLimitExceeded", "Error", etc.
+        public long? ProcessingTimeMs { get; set; } // Processing time in milliseconds
         
         // Real ISB.az məlumatları üçün əlavə sahələr
         public string? VehicleBrand { get; set; }

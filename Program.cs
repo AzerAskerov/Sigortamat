@@ -44,6 +44,12 @@ namespace Sigortamat
             services.AddDbContext<ApplicationDbContext>(options => 
                 options.UseSqlServer(connectionString));
                 
+            // Job handler servislərini əlavə et
+            services.AddScoped<InsuranceJobHandler>();
+            services.AddScoped<WhatsAppJob>();
+            services.AddScoped<InsuranceService>();
+            services.AddScoped<WhatsAppService>();
+                
             // Service Provider yaradılması
             var serviceProvider = services.BuildServiceProvider();
             
@@ -119,7 +125,6 @@ namespace Sigortamat
             Console.WriteLine("📊 Queue statusunu görmək üçün ENTER basın...");
             Console.WriteLine("📈 Sığorta statistikası üçün 'S' basın...");
             Console.WriteLine("📱 WhatsApp statistikası üçün 'W' basın...");
-            Console.WriteLine("🚗 Test maşın nömrəsi əlavə etmək üçün 'T' basın...");
             Console.WriteLine("❌ Sistemi dayandırmaq üçün ESC basın...");
             Console.WriteLine();
 
@@ -176,9 +181,21 @@ namespace Sigortamat
                 {
                     WhatsAppJobRepository.ShowWhatsAppStatistics();
                 }
-                else if (key.Key == ConsoleKey.T)
+                else if (key.Key == ConsoleKey.D)
                 {
-                    await AddTestCarNumber();
+                    Console.WriteLine("\n🧪 DATE SET EXPERIMENT başladı...");
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var result = await DateSetExperiment.TestDateSetting();
+                            Console.WriteLine($"🧪 EXPERIMENT nəticəsi: {(result ? "UĞURLU" : "UĞURSUZ")}");
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"🧪 EXPERIMENT xətası: {ex.Message}");
+                        }
+                    });
                 }
                 else if (key.Key == ConsoleKey.Escape)
                 {
@@ -195,7 +212,7 @@ namespace Sigortamat
         private static void SetupRecurringJobs()
         {
             // Sadəcə yeni sistem - hər dəqiqə
-            RecurringJob.AddOrUpdate<InsuranceJob>(
+            RecurringJob.AddOrUpdate<InsuranceJobHandler>(
                 "insurance-check",
                 job => job.ProcessInsuranceQueue(),
                 Cron.Minutely);
@@ -213,42 +230,10 @@ namespace Sigortamat
         private static void AddManualTestJobs()
         {
             // İlk dəfə dərhal işləsin
-            BackgroundJob.Enqueue<InsuranceJob>(job => job.ProcessInsuranceQueue());
+            BackgroundJob.Enqueue<InsuranceJobHandler>(job => job.ProcessInsuranceQueue());
             BackgroundJob.Schedule<WhatsAppJob>(job => job.ProcessWhatsAppQueue(), TimeSpan.FromSeconds(10));
             
             Console.WriteLine("🧪 Test job-ları əlavə edildi");
-        }
-
-        /// <summary>
-        /// Test car number əlavə etmək
-        /// </summary>
-        private static async Task AddTestCarNumber()
-        {
-            Console.WriteLine();
-            Console.WriteLine("🚗 Test maşın nömrəsi daxil edin (məs. 10RL047, 90AB123):");
-            Console.Write("Nömrə: ");
-            
-            var carNumber = Console.ReadLine()?.Trim().ToUpper();
-            
-            if (string.IsNullOrEmpty(carNumber))
-            {
-                Console.WriteLine("❌ Boş nömrə daxil edilə bilməz!");
-                return;
-            }
-            
-            try
-            {
-                var queueId = InsuranceJobRepository.CreateInsuranceJob(carNumber);
-                
-                Console.WriteLine($"✅ {carNumber} nömrəsi queue-ya əlavə edildi (Queue ID: {queueId})");
-                Console.WriteLine("🔄 Növbəti recurring job-da emal olunacaq (max 1 dəqiqə)");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"❌ Xəta baş verdi: {ex.Message}");
-            }
-            
-            Console.WriteLine();
         }
     }
 

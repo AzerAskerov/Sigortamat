@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Sigortamat.Data;
 using Sigortamat.Models;
@@ -46,6 +47,25 @@ namespace Sigortamat.Services
         }
 
         /// <summary>
+        /// Queue elementi tap - async
+        /// </summary>
+        public async Task<Queue?> GetQueueAsync(int queueId)
+        {
+            using var db = new ApplicationDbContextFactory().CreateDbContext(new string[0]);
+            return await db.Queues.FindAsync(queueId);
+        }
+
+        /// <summary>
+        /// Queue elementini yenilə - async
+        /// </summary>
+        public async Task UpdateQueueAsync(Queue queue)
+        {
+            using var db = new ApplicationDbContextFactory().CreateDbContext(new string[0]);
+            db.Queues.Update(queue);
+            await db.SaveChangesAsync();
+        }
+
+        /// <summary>
         /// Queue elementini işlənir statusuna keçir
         /// </summary>
         public static void MarkAsProcessing(int queueId)
@@ -54,9 +74,18 @@ namespace Sigortamat.Services
             var queue = db.Queues.Find(queueId);
             if (queue != null)
             {
+                // ProcessAfter field-ini preserve et
+                var existingProcessAfter = queue.ProcessAfter;
                 queue.Status = "processing";
                 queue.StartedAt = DateTime.Now;
+                // ProcessAfter-i yenidən təyin et (əgər varsa)
+                if (existingProcessAfter.HasValue)
+                {
+                    queue.ProcessAfter = existingProcessAfter;
+                }
                 db.SaveChanges();
+                
+                Console.WriteLine($"🔧 DEBUG MarkAsProcessing - Queue {queueId}: Status=processing, ProcessAfter={queue.ProcessAfter}");
             }
         }
 
@@ -169,6 +198,48 @@ namespace Sigortamat.Services
             else
             {
                 Console.WriteLine("📋 Heç bir queue məlumatı yoxdur");
+            }
+        }
+        
+        /// <summary>
+        /// Queue-u gələcək tarixə yenidən planlaşdır
+        /// Status-u pending-ə qaytarır və ProcessAfter set edir
+        /// RAW SQL istifadə edir - EF Context problemini həll edir
+        /// </summary>
+        public static void RescheduleJob(int queueId, DateTime processAfter, string reason = "")
+        {
+            try
+            {
+                using var db = new ApplicationDbContextFactory().CreateDbContext(new string[0]);
+                
+                Console.WriteLine($"🔧 DEBUG RescheduleJob - Queue {queueId} üçün ProcessAfter set edilir: {processAfter:yyyy-MM-dd HH:mm:ss}");
+                
+                // ADO.NET ilə birbaşa SQL update - commit təmin edilir
+                var connectionString = db.Database.GetDbConnection().ConnectionString;
+                db.Dispose();
+                
+                using var sqlConn = new Microsoft.Data.SqlClient.SqlConnection(connectionString);
+                sqlConn.Open();
+                using var sqlCmd = sqlConn.CreateCommand();
+                sqlCmd.CommandText = @"
+                    UPDATE Queues
+                    SET Status = 'pending',
+                        ProcessAfter = @processAfter,
+                        ErrorMessage = @reason,
+                        RetryCount = RetryCount + 1
+                    WHERE Id = @queueId";
+                sqlCmd.Parameters.AddWithValue("@processAfter", processAfter);
+                sqlCmd.Parameters.AddWithValue("@reason", reason ?? string.Empty);
+                sqlCmd.Parameters.AddWithValue("@queueId", queueId);
+                var updated = sqlCmd.ExecuteNonQuery();
+                Console.WriteLine($"🔧 DEBUG RescheduleJob - ADO.NET update result: {updated} sətir yeniləndi");
+                Console.WriteLine($"⏰ Queue {queueId} ADO.NET ilə sabaha planlaşdırıldı: {processAfter:dd.MM.yyyy HH:mm} ({reason})");
+                sqlConn.Close();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ DEBUG RescheduleJob - Exception: {ex.Message}");
+                Console.WriteLine($"❌ Stack Trace: {ex.StackTrace}");
             }
         }
     }

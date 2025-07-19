@@ -24,6 +24,8 @@ namespace Sigortamat.Models
         
         // Processing metadata
         public int? ProcessingTimeMs { get; set; } // Processing time in milliseconds
+        public DateTime? CheckDate { get; set; } // The date to check insurance for (can be past date for renewal tracking)
+        public int? InsuranceRenewalTrackingId { get; set; } // Link to renewal tracking process
         public DateTime CreatedAt { get; set; } = DateTime.Now;
         public DateTime? ProcessedAt { get; set; }
         
