@@ -369,3 +369,5 @@ Thumbs.db
 # WhatsApp bot session and cache files
 whatsapp-bot/auth_data/
 whatsapp-bot/.wwebjs_cache/
+app_log.txt
+console_output.txt

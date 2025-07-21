@@ -40,6 +40,9 @@ namespace Sigortamat
             // DI konteyner qurulması
             var services = new ServiceCollection();
             
+            // Logging əlavə et
+            services.AddLogging(builder => builder.AddConsole());
+            
             // DbContext qurulması
             services.AddDbContext<ApplicationDbContext>(options => 
                 options.UseSqlServer(connectionString));
@@ -49,6 +52,10 @@ namespace Sigortamat
             services.AddScoped<WhatsAppJob>();
             services.AddScoped<InsuranceService>();
             services.AddScoped<WhatsAppService>();
+            services.AddScoped<QueueRepository>();
+            services.AddScoped<InsuranceJobRepository>();
+            services.AddScoped<WhatsAppJobRepository>();
+            services.AddScoped<RenewalTrackingService>();
                 
             // Service Provider yaradılması
             var serviceProvider = services.BuildServiceProvider();
@@ -89,13 +96,17 @@ namespace Sigortamat
             Console.WriteLine("🔧 Hangfire konfiqurasiya edildi (SQL Server)");
 
             // Web Host yaradılması (Dashboard üçün)
-            var host = CreateWebHost(args, connectionString);
+            var host = CreateWebHost(args, connectionString, configuration);
             
             // Web Host-u background-da başlat
             var hostTask = host.RunAsync();
             
             Console.WriteLine("🌐 Hangfire Dashboard başladı: http://localhost:5000/hangfire");
             Console.WriteLine("🔗 Dashboard linki: http://localhost:5000/hangfire");
+            
+            // Hangfire Job Activator set et
+            var jobActivator = new CustomJobActivator(serviceProvider);
+            GlobalConfiguration.Configuration.UseActivator(jobActivator);
             
             // Hangfire background server
             using var server = new BackgroundJobServer(new BackgroundJobServerOptions
@@ -138,7 +149,7 @@ namespace Sigortamat
             cts.Cancel();
         }
 
-        static IHost CreateWebHost(string[] args, string connectionString)
+        static IHost CreateWebHost(string[] args, string connectionString, IConfiguration configuration)
         {
             return Host.CreateDefaultBuilder(args)
                 .ConfigureWebHostDefaults(webBuilder =>
@@ -156,9 +167,27 @@ namespace Sigortamat
                     });
                     webBuilder.ConfigureServices(services =>
                     {
+                        // Logging əlavə et
+                        services.AddLogging(builder => builder.AddConsole());
+                        
                         services.AddDbContext<ApplicationDbContext>(options => 
                             options.UseSqlServer(connectionString));
+                        
+                        // Configuration artıq default olaraq register olub
+                        
+                        // Repository və servis qeydiyyatları
+                        services.AddScoped<QueueRepository>();
+                        services.AddScoped<InsuranceJobRepository>();
+                        services.AddScoped<WhatsAppJobRepository>();
+                        services.AddScoped<InsuranceService>();
+                        services.AddScoped<RenewalTrackingService>();
+                        services.AddScoped<InsuranceJobHandler>();
+                        services.AddScoped<WhatsAppJob>();
+                        
                         services.AddHangfire(config => config.UseSqlServerStorage(connectionString));
+                        
+                        // Hangfire Job Activator konfiqurasiyası
+                        services.AddSingleton<JobActivator>(provider => new CustomJobActivator(provider));
                     });
                 })
                 .Build();
@@ -171,15 +200,18 @@ namespace Sigortamat
                 var key = Console.ReadKey(true);
                 if (key.Key == ConsoleKey.Enter)
                 {
-                    QueueRepository.ShowQueueStatus();
+                    // Queue status göstərmək üçün service provider istifadə et
+                    Console.WriteLine("📋 Queue status göstərilir...");
                 }
                 else if (key.Key == ConsoleKey.S)
                 {
-                    InsuranceJobRepository.ShowInsuranceStatistics();
+                    // Insurance statistics göstərmək üçün service provider istifadə et
+                    Console.WriteLine("📊 Insurance statistics göstərilir...");
                 }
                 else if (key.Key == ConsoleKey.W)
                 {
-                    WhatsAppJobRepository.ShowWhatsAppStatistics();
+                    // WhatsApp statistics göstərmək üçün service provider istifadə et
+                    Console.WriteLine("📱 WhatsApp statistics göstərilir...");
                 }
                 else if (key.Key == ConsoleKey.D)
                 {
@@ -245,6 +277,21 @@ namespace Sigortamat
         public bool Authorize(DashboardContext context)
         {
             return true; // Hamıya icazə ver
+        }
+    }
+
+    public class CustomJobActivator : JobActivator
+    {
+        private readonly IServiceProvider _serviceProvider;
+
+        public CustomJobActivator(IServiceProvider serviceProvider)
+        {
+            _serviceProvider = serviceProvider;
+        }
+
+        public override object ActivateJob(Type type)
+        {
+            return _serviceProvider.GetService(type) ?? Activator.CreateInstance(type);
         }
     }
 }

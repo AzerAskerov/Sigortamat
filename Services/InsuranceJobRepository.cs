@@ -11,14 +11,48 @@ namespace Sigortamat.Services
     /// <summary>
     /// Sığorta yoxlama işləri üçün repository
     /// </summary>
-    public static class InsuranceJobRepository
+    public class InsuranceJobRepository
     {
+        private readonly ApplicationDbContext _context;
+        private readonly QueueRepository _queueRepository;
+
+        public InsuranceJobRepository(ApplicationDbContext context, QueueRepository queueRepository)
+        {
+            _context = context;
+            _queueRepository = queueRepository;
+        }
+
+        /// <summary>
+        /// Renewal tracking üçün sığorta yoxlama işi yarat
+        /// </summary>
+        public async Task<int> CreateInsuranceJobAsync(string carNumber, DateTime checkDate, 
+            int? renewalTrackingId = null, DateTime? processAfter = null, int priority = 0)
+        {
+            int queueId = _queueRepository.AddToQueue("insurance", priority, processAfter);
+            
+            using var db = new ApplicationDbContextFactory().CreateDbContext(new string[0]);
+            var insuranceJob = new InsuranceJob
+            {
+                QueueId = queueId,
+                CarNumber = carNumber,
+                Status = "pending",
+                CheckDate = checkDate,
+                InsuranceRenewalTrackingId = renewalTrackingId,
+                CreatedAt = DateTime.Now
+            };
+            db.InsuranceJobs.Add(insuranceJob);
+            await db.SaveChangesAsync();
+            
+            Console.WriteLine($"🚗 Renewal tracking üçün sığorta işi yaradıldı: {carNumber} (Tarix: {checkDate:yyyy-MM-dd})");
+            return queueId;
+        }
+
         /// <summary>
         /// Yeni sığorta yoxlama işi yarat
         /// </summary>
-        public static int CreateInsuranceJob(string carNumber, string? vehicleBrand = null, string? vehicleModel = null, int priority = 0)
+        public int CreateInsuranceJob(string carNumber, string? vehicleBrand = null, string? vehicleModel = null, int priority = 0)
         {
-            int queueId = QueueRepository.AddToQueue("insurance", priority);
+            int queueId = _queueRepository.AddToQueue("insurance", priority);
             
             using var db = new ApplicationDbContextFactory().CreateDbContext(new string[0]);
             var insuranceJob = new InsuranceJob
@@ -41,7 +75,7 @@ namespace Sigortamat.Services
         /// <summary>
         /// InsuranceJob-u yenilə - async
         /// </summary>
-        public static async Task UpdateInsuranceJobAsync(InsuranceJob job)
+        public async Task UpdateInsuranceJobAsync(InsuranceJob job)
         {
             using var db = new ApplicationDbContextFactory().CreateDbContext(new string[0]);
             db.InsuranceJobs.Update(job);
@@ -51,7 +85,7 @@ namespace Sigortamat.Services
         /// <summary>
         /// Sığorta yoxlama nəticəsini yenilə
         /// </summary>
-        public static void UpdateInsuranceResult(int queueId, string status, 
+        public void UpdateInsuranceResult(int queueId, string status, 
             string? company = null, int? processingTimeMs = null, 
             string? vehicleBrand = null, string? vehicleModel = null, string? resultText = null)
         {
@@ -75,7 +109,7 @@ namespace Sigortamat.Services
         /// <summary>
         /// Gözləyən sığorta işlərini gətir
         /// </summary>
-        public static List<InsuranceJob> GetPendingInsuranceJobs(int limit = 10)
+        public List<InsuranceJob> GetPendingInsuranceJobs(int limit = 10)
         {
             using var db = new ApplicationDbContextFactory().CreateDbContext(new string[0]);
             return db.InsuranceJobs
@@ -95,7 +129,7 @@ namespace Sigortamat.Services
         /// <summary>
         /// Sığorta işini queue ID ilə gətir
         /// </summary>
-        public static InsuranceJob? GetInsuranceJobByQueueId(int queueId)
+        public InsuranceJob? GetInsuranceJobByQueueId(int queueId)
         {
             using var db = new ApplicationDbContextFactory().CreateDbContext(new string[0]);
             return db.InsuranceJobs
@@ -106,7 +140,7 @@ namespace Sigortamat.Services
         /// <summary>
         /// Real test məlumatları yarat (işlək ISB.az nömrələri ilə)
         /// </summary>
-        public static void SeedRealTestData()
+        public void SeedRealTestData()
         {
             Console.WriteLine("🔍 Real ISB.az test məlumatları yaradılır...");
             
@@ -121,7 +155,19 @@ namespace Sigortamat.Services
             
             Console.WriteLine("✅ Real ISB.az test məlumatları yaradıldı - Real Selenium aktiv!");
         }
-        public static void ShowInsuranceStatistics()
+        /// <summary>
+        /// Renewal tracking ilə bağlı sığorta işlərini gətir
+        /// </summary>
+        public async Task<List<InsuranceJob>> GetRenewalTrackingJobsAsync(int renewalTrackingId)
+        {
+            using var db = new ApplicationDbContextFactory().CreateDbContext(new string[0]);
+            return await db.InsuranceJobs
+                .Where(j => j.InsuranceRenewalTrackingId == renewalTrackingId)
+                .OrderBy(j => j.CheckDate)
+                .ToListAsync();
+        }
+
+        public void ShowInsuranceStatistics()
         {
             using var db = new ApplicationDbContextFactory().CreateDbContext(new string[0]);
             
@@ -152,6 +198,41 @@ namespace Sigortamat.Services
             Console.WriteLine($"⚡ Orta prosessing vaxtı: {avgProcessingTime:F0}ms");
             Console.WriteLine($"🛡️ Etibarlı sığorta: {validInsurances}");
             Console.WriteLine($"⚠️ Vaxtı bitmiş: {expiredInsurances}");
+        }
+
+        public async Task<InsuranceJob?> GetByQueueIdAsync(int queueId)
+        {
+            return await _context.InsuranceJobs.FirstOrDefaultAsync(j => j.QueueId == queueId);
+        }
+
+        /// <summary>
+        /// InsuranceJob nəticəsini yenilə - DailyLimitExceeded halında status dəyişdirilmir
+        /// </summary>
+        public async Task UpdateJobResultAsync(int jobId, InsuranceResult result, long processingTime)
+        {
+            var job = await _context.InsuranceJobs.FindAsync(jobId);
+            if (job != null)
+            {
+                // Daily limit zamanı status dəyişməsin, pending qalsın
+                if (result.ResultText == "DailyLimitExceeded")
+                {
+                    // Status dəyişilmir (pending qalır)
+                    job.ResultText = "Gündəlik limit doldu - sabah yenidən yoxlanılacaq";
+                }
+                else
+                {
+                    job.Status = result.Success ? "completed" : "failed";
+                    job.ResultText = result.Success ? result.ResultText : result.ErrorMessage;
+                }
+                
+                job.Company = result.Company;
+                job.VehicleBrand = result.VehicleBrand;
+                job.VehicleModel = result.VehicleModel;
+                job.ProcessedAt = DateTime.Now;
+                job.ProcessingTimeMs = (int)processingTime; // Cast to int
+                
+                await _context.SaveChangesAsync();
+            }
         }
     }
 }

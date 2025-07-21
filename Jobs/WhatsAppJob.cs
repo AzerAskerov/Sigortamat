@@ -12,9 +12,13 @@ namespace Sigortamat.Jobs
     public class WhatsAppJob
     {
         private readonly WhatsAppService _whatsappService;
+        private readonly WhatsAppJobRepository _whatsappJobRepository;
+        private readonly QueueRepository _queueRepository;
 
-        public WhatsAppJob()
+        public WhatsAppJob(WhatsAppJobRepository whatsappJobRepository, QueueRepository queueRepository)
         {
+            _whatsappJobRepository = whatsappJobRepository;
+            _queueRepository = queueRepository;
             _whatsappService = new WhatsAppService();
         }
 
@@ -27,7 +31,7 @@ namespace Sigortamat.Jobs
             Console.WriteLine("\n📱 WHATSAPP JOB BAŞLADI (Yeni sistem)");
             Console.WriteLine("=".PadRight(50, '='));
             
-            var pendingJobs = WhatsAppJobRepository.GetPendingWhatsAppJobs(3);
+            var pendingJobs = _whatsappJobRepository.GetPendingWhatsAppJobs(3);
             
             if (pendingJobs.Count == 0)
             {
@@ -46,7 +50,7 @@ namespace Sigortamat.Jobs
                     Console.WriteLine($"   Mesaj: {job.MessageText.Substring(0, Math.Min(50, job.MessageText.Length))}...");
                     
                     // Queue-u processing kimi işarələ
-                    QueueRepository.MarkAsProcessing(job.QueueId);
+                    _queueRepository.MarkAsProcessing(job.QueueId);
                     
                     var success = await _whatsappService.SendMessageAsync(job.PhoneNumber, job.MessageText);
                     stopwatch.Stop();
@@ -54,7 +58,7 @@ namespace Sigortamat.Jobs
                     if (success)
                     {
                         // WhatsApp job statusunu yenilə
-                        WhatsAppJobRepository.UpdateDeliveryStatus(
+                        _whatsappJobRepository.UpdateDeliveryStatus(
                             job.QueueId, 
                             "sent", 
                             null,
@@ -62,19 +66,19 @@ namespace Sigortamat.Jobs
                         );
                         
                         // Queue-u tamamlanmış kimi işarələ
-                        QueueRepository.MarkAsCompleted(job.QueueId);
+                        _queueRepository.MarkAsCompleted(job.QueueId);
                         Console.WriteLine($"✅ Tamamlandı: {job.PhoneNumber} ({stopwatch.ElapsedMilliseconds}ms)");
                     }
                     else
                     {
-                        WhatsAppJobRepository.UpdateDeliveryStatus(
+                        _whatsappJobRepository.UpdateDeliveryStatus(
                             job.QueueId, 
                             "failed", 
                             "WhatsApp göndərmə uğursuz",
                             (int)stopwatch.ElapsedMilliseconds
                         );
                         
-                        QueueRepository.MarkAsFailed(job.QueueId, "WhatsApp göndərmə uğursuz");
+                        _queueRepository.MarkAsFailed(job.QueueId, "WhatsApp göndərmə uğursuz");
                         Console.WriteLine($"❌ Uğursuz: {job.PhoneNumber}");
                     }
                     
@@ -84,14 +88,14 @@ namespace Sigortamat.Jobs
                 catch (Exception ex)
                 {
                     stopwatch.Stop();
-                    WhatsAppJobRepository.UpdateDeliveryStatus(
+                    _whatsappJobRepository.UpdateDeliveryStatus(
                         job.QueueId, 
                         "failed", 
                         ex.Message,
                         (int)stopwatch.ElapsedMilliseconds
                     );
                     
-                    QueueRepository.MarkAsFailed(job.QueueId, ex.Message);
+                    _queueRepository.MarkAsFailed(job.QueueId, ex.Message);
                     Console.WriteLine($"❌ Xəta: {job.PhoneNumber} - {ex.Message}");
                 }
             }

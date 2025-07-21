@@ -15,6 +15,10 @@ namespace Sigortamat.Data
         public DbSet<Queue> Queues { get; set; }
         public DbSet<InsuranceJob> InsuranceJobs { get; set; }
         public DbSet<WhatsAppJob> WhatsAppJobs { get; set; }
+        
+        // Renewal tracking sistemi
+        public DbSet<User> Users { get; set; }
+        public DbSet<InsuranceRenewalTracking> InsuranceRenewalTracking { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -47,6 +51,29 @@ namespace Sigortamat.Data
                 entity.HasOne(e => e.Queue)
                       .WithMany()
                       .HasForeignKey(e => e.QueueId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<User>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.CarNumber).IsRequired().HasMaxLength(20);
+                entity.HasIndex(e => e.CarNumber).IsUnique();
+                entity.Property(e => e.PhoneNumber).HasMaxLength(20);
+                entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETDATE()");
+            });
+
+            modelBuilder.Entity<InsuranceRenewalTracking>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.CurrentPhase).IsRequired().HasMaxLength(20);
+                entity.Property(e => e.LastCheckResult).HasMaxLength(4000);
+                entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETDATE()");
+                
+                // Foreign key relationship
+                entity.HasOne(e => e.User)
+                      .WithMany()
+                      .HasForeignKey(e => e.UserId)
                       .OnDelete(DeleteBehavior.Cascade);
             });
 

@@ -3,17 +3,20 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Sigortamat.Data;
 
 #nullable disable
 
-namespace Sigortamat.Migrations
+namespace sigortaYoxla.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250719101220_AddUsersAndRenewalTracking")]
+    partial class AddUsersAndRenewalTracking
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -202,11 +205,9 @@ namespace Sigortamat.Migrations
                         .HasDefaultValueSql("GETDATE()");
 
                     b.Property<int?>("EstimatedRenewalDay")
-                        .HasMaxLength(2)
                         .HasColumnType("int");
 
                     b.Property<int?>("EstimatedRenewalMonth")
-                        .HasMaxLength(2)
                         .HasColumnType("int");
 
                     b.Property<DateTime?>("LastConfirmedRenewalDate")

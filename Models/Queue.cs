@@ -18,5 +18,6 @@ namespace Sigortamat.Models
         public int Priority { get; set; } = 0;
         public int RetryCount { get; set; } = 0;
         public string? ErrorMessage { get; set; }
+        public DateTime? UpdatedAt { get; set; } // Bu sətir əlavə olundu
     }
 }

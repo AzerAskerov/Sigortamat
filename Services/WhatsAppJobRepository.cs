@@ -10,16 +10,24 @@ namespace Sigortamat.Services
     /// <summary>
     /// WhatsApp mesaj işləri üçün repository
     /// </summary>
-    public static class WhatsAppJobRepository
+    public class WhatsAppJobRepository
     {
+        private readonly ApplicationDbContext _context;
+        private readonly QueueRepository _queueRepository;
+
+        public WhatsAppJobRepository(ApplicationDbContext context, QueueRepository queueRepository)
+        {
+            _context = context;
+            _queueRepository = queueRepository;
+        }
+
         /// <summary>
         /// Yeni WhatsApp mesaj işi yarat
         /// </summary>
-        public static int CreateWhatsAppJob(string phoneNumber, string messageText, int priority = 0)
+        public int CreateWhatsAppJob(string phoneNumber, string messageText, int priority = 0)
         {
-            int queueId = QueueRepository.AddToQueue("whatsapp", priority);
+            int queueId = _queueRepository.AddToQueue("whatsapp", priority);
             
-            using var db = new ApplicationDbContextFactory().CreateDbContext(new string[0]);
             var whatsAppJob = new WhatsAppJob
             {
                 QueueId = queueId,
@@ -27,8 +35,8 @@ namespace Sigortamat.Services
                 MessageText = messageText,
                 DeliveryStatus = "pending"
             };
-            db.WhatsAppJobs.Add(whatsAppJob);
-            db.SaveChanges();
+            _context.WhatsAppJobs.Add(whatsAppJob);
+            _context.SaveChanges();
             
             Console.WriteLine($"📱 Yeni WhatsApp mesaj işi yaradıldı: {phoneNumber} (Queue ID: {queueId})");
             return queueId;
@@ -37,10 +45,9 @@ namespace Sigortamat.Services
         /// <summary>
         /// WhatsApp mesaj statusunu yenilə
         /// </summary>
-        public static void UpdateDeliveryStatus(int queueId, string status, string? errorDetails = null, int? processingTimeMs = null)
+        public void UpdateDeliveryStatus(int queueId, string status, string? errorDetails = null, int? processingTimeMs = null)
         {
-            using var db = new ApplicationDbContextFactory().CreateDbContext(new string[0]);
-            var job = db.WhatsAppJobs.FirstOrDefault(j => j.QueueId == queueId);
+            var job = _context.WhatsAppJobs.FirstOrDefault(j => j.QueueId == queueId);
             if (job != null)
             {
                 job.DeliveryStatus = status;
@@ -51,7 +58,7 @@ namespace Sigortamat.Services
                 else if (status == "delivered") job.DeliveredAt = DateTime.Now;
                 else if (status == "read") job.ReadAt = DateTime.Now;
                 
-                db.SaveChanges();
+                _context.SaveChanges();
                 
                 Console.WriteLine($"📱 WhatsApp mesaj statusu yeniləndi: {job.PhoneNumber} - {status}");
             }
@@ -60,11 +67,10 @@ namespace Sigortamat.Services
         /// <summary>
         /// Gözləyən WhatsApp işlərini gətir
         /// </summary>
-        public static List<WhatsAppJob> GetPendingWhatsAppJobs(int limit = 10)
+        public List<WhatsAppJob> GetPendingWhatsAppJobs(int limit = 10)
         {
-            using var db = new ApplicationDbContextFactory().CreateDbContext(new string[0]);
-            return db.WhatsAppJobs
-                .Join(db.Queues, 
+            return _context.WhatsAppJobs
+                .Join(_context.Queues, 
                     job => job.QueueId, 
                     queue => queue.Id, 
                     (job, queue) => new { Job = job, Queue = queue })
@@ -80,10 +86,9 @@ namespace Sigortamat.Services
         /// <summary>
         /// WhatsApp işini queue ID ilə gətir
         /// </summary>
-        public static WhatsAppJob? GetWhatsAppJobByQueueId(int queueId)
+        public WhatsAppJob? GetWhatsAppJobByQueueId(int queueId)
         {
-            using var db = new ApplicationDbContextFactory().CreateDbContext(new string[0]);
-            return db.WhatsAppJobs
+            return _context.WhatsAppJobs
                 .Include(j => j.Queue)
                 .FirstOrDefault(j => j.QueueId == queueId);
         }
@@ -91,29 +96,27 @@ namespace Sigortamat.Services
         /// <summary>
         /// WhatsApp mesaj statistikası
         /// </summary>
-        public static void ShowWhatsAppStatistics()
+        public void ShowWhatsAppStatistics()
         {
-            using var db = new ApplicationDbContextFactory().CreateDbContext(new string[0]);
-            
-            var total = db.WhatsAppJobs.Count();
+            var total = _context.WhatsAppJobs.Count();
             if (total == 0)
             {
                 Console.WriteLine("📊 WhatsApp statistikası: Heç bir məlumat yoxdur");
                 return;
             }
             
-            var sent = db.WhatsAppJobs.Count(j => j.DeliveryStatus == "sent");
-            var delivered = db.WhatsAppJobs.Count(j => j.DeliveryStatus == "delivered");
-            var read = db.WhatsAppJobs.Count(j => j.DeliveryStatus == "read");
-            var failed = db.WhatsAppJobs.Count(j => j.DeliveryStatus == "failed");
+            var sent = _context.WhatsAppJobs.Count(j => j.DeliveryStatus == "sent");
+            var delivered = _context.WhatsAppJobs.Count(j => j.DeliveryStatus == "delivered");
+            var read = _context.WhatsAppJobs.Count(j => j.DeliveryStatus == "read");
+            var failed = _context.WhatsAppJobs.Count(j => j.DeliveryStatus == "failed");
             
-            var avgProcessingTime = db.WhatsAppJobs
+            var avgProcessingTime = _context.WhatsAppJobs
                 .Where(j => j.ProcessingTimeMs.HasValue)
                 .Select(j => j.ProcessingTimeMs!.Value)
                 .DefaultIfEmpty(0)
                 .Average();
             
-            var avgDeliveryTime = db.WhatsAppJobs
+            var avgDeliveryTime = _context.WhatsAppJobs
                 .Where(j => j.SentAt.HasValue && j.DeliveredAt.HasValue)
                 .Select(j => (j.DeliveredAt!.Value - j.SentAt!.Value).TotalSeconds)
                 .DefaultIfEmpty(0)
@@ -134,7 +137,7 @@ namespace Sigortamat.Services
         /// <summary>
         /// Test məlumatları yarat
         /// </summary>
-        public static void SeedTestData()
+        public void SeedTestData()
         {
             Console.WriteLine("📱 WhatsApp test məlumatları yaradılır...");
             

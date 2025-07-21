@@ -15,17 +15,11 @@
             "trustServerCertificate": false
         }
     ],
-    "mcp.servers": {
-        "azure-sql": {
-            "command": "sqlcmd",
-            "args": [
-                "-S", "sigortayoxla.database.windows.net",
-                "-d", "SigortaYoxlaDb", 
-                "-U", "a.azar1988",
-                "-P", "54EhP6.G@RKcp8#",
-                "-Q"
-            ]
-        }
+   "mssql": {
+      "command": "python",
+      "args": [
+    "C:\\Users\\asgaroff\\Documents\\MCP\\mssql-mcp\\src\\server.py"
+      ] 
     },
     "mcp.enabled": true
 }

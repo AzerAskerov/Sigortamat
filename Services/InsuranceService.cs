@@ -143,12 +143,11 @@ namespace Sigortamat.Services
                                 Console.WriteLine($"✅ Sığorta tapıldı: {company}");
                                 return new InsuranceResult
                                 {
-                                    IsValid = true,
-                                    Status = "completed", // Job handler üçün
+                                    Success = true,
                                     Company = company,
                                     VehicleBrand = brand,
                                     VehicleModel = model,
-                                    ProcessingTimeMs = (int)sw.ElapsedMilliseconds,
+                                    DurationMs = (int)sw.ElapsedMilliseconds,
                                     ResultText = "Sığorta məlumatları tapıldı"
                                 };
                             }
@@ -166,10 +165,7 @@ namespace Sigortamat.Services
                         Console.WriteLine($"⚠️ Məlumat tapılmadı: {job.CarNumber}");
                         return new InsuranceResult
                         {
-                            IsValid = false,
-                            Status = "completed", // Job tamamlandı, amma nəticə yox
-                            Company = string.Empty,
-                            ProcessingTimeMs = (int)sw.ElapsedMilliseconds,
+                            Success = true, // Still a success, just no data
                             ResultText = "Məlumat tapılmadı"
                         };
                     }
@@ -187,14 +183,14 @@ namespace Sigortamat.Services
                         // Bu job-u sabaha yenidən planlaşdır
                         var tomorrow = DateTime.Today.AddDays(1).AddHours(8); // Sabah saat 08:00
                         Console.WriteLine($"⏰ Queue {job.QueueId} yenidən planlandı: {tomorrow} - Gündəlik limit dolduğu üçün sabah yenidən cəhd");
-                        QueueRepository.RescheduleJob(job.QueueId, tomorrow, "Gündəlik limit doldu");
+                        if (_queueRepository != null)
+                        {
+                            _queueRepository.RescheduleJob(job.QueueId, tomorrow, "Gündəlik limit doldu");
+                        }
                         
                         return new InsuranceResult
                         {
-                            IsValid = false,
-                            Status = "rescheduled", // Rescheduled statusu - heç nə etməyək
-                            Company = string.Empty,
-                            ProcessingTimeMs = (int)sw.ElapsedMilliseconds,
+                            Success = false,
                             ResultText = "DailyLimitExceeded"
                         };
                     }
@@ -211,11 +207,28 @@ namespace Sigortamat.Services
                 }
                 
                 Console.WriteLine($"❌ Xəta: {job.CarNumber} - {errorMessage}");
+                
+                // Xəta halında 5 dəqiqə sonra yenidən cəhd et
+                var retryAfter = DateTime.Now.AddMinutes(5);
+                Console.WriteLine($"⏰ Queue {job.QueueId} yenidən planlandı: {retryAfter:HH:mm} - Xəta səbəbindən 5 dəqiqə sonra yenidən cəhd");
+                if (_queueRepository != null)
+                {
+                    // Queue artıq completed statusunda ola bilər, yoxla
+                    var queue = _queueRepository.GetQueueById(job.QueueId);
+                    Console.WriteLine($"🔧 DEBUG - Queue {job.QueueId} status check: {queue?.Status ?? "NULL"}");
+                    if (queue != null && queue.Status != "completed")
+                    {
+                        _queueRepository.RescheduleJob(job.QueueId, retryAfter, errorMessage);
+                    }
+                    else
+                    {
+                        Console.WriteLine($"🔧 DEBUG - Queue {job.QueueId} artıq completed statusunda, reschedule edilmir");
+                    }
+                }
+                
                 return new InsuranceResult
                 {
-                    IsValid = false,
-                    Company = string.Empty,
-                    ProcessingTimeMs = (int)sw.ElapsedMilliseconds,
+                    Success = false,
                     ResultText = errorMessage
                 };
             }
@@ -224,9 +237,7 @@ namespace Sigortamat.Services
                 Console.WriteLine($"💥 Selenium xətası: {job.CarNumber} - {ex.Message}");
                 return new InsuranceResult
                 {
-                    IsValid = false,
-                    Company = string.Empty,
-                    ProcessingTimeMs = (int)sw.ElapsedMilliseconds,
+                    Success = false,
                     ResultText = $"System xətası: {ex.Message}"
                 };
             }

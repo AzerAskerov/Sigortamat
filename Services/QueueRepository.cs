@@ -5,20 +5,40 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Sigortamat.Data;
 using Sigortamat.Models;
+using Microsoft.Extensions.Logging;
 
 namespace Sigortamat.Services
 {
+    public interface IQueueRepository
+    {
+        Task<int> CreateQueueAsync(string type, int priority = 1, DateTime? processAfter = null);
+        void MarkAsCompleted(int queueId);
+        void MarkAsFailed(int queueId, string errorMessage);
+        void RescheduleJob(int queueId, DateTime processAfter, string? errorMessage = null);
+        Queue? GetQueueById(int queueId);
+        Queue? DequeueAndMarkAsProcessing(string type);
+    }
+
     /// <summary>
     /// Queue repository - Yalnız yeni queue sistemi
     /// </summary>
-    public class QueueRepository
+    public class QueueRepository : IQueueRepository
     {
+        private readonly ApplicationDbContext _context;
+        private readonly ILogger<QueueRepository> _logger;
+
+        public QueueRepository(ApplicationDbContext context, ILogger<QueueRepository> logger)
+        {
+            _logger = logger;
+            _context = context;
+        }
+
         #region Yeni Sistem - Queue Management
 
         /// <summary>
         /// Yeni queue elementi yarat
         /// </summary>
-        public static int AddToQueue(string type, int priority = 0)
+        public int AddToQueue(string type, int priority = 0)
         {
             return AddToQueue(type, priority, null);
         }
@@ -26,9 +46,16 @@ namespace Sigortamat.Services
         /// <summary>
         /// Yeni queue elementi yarat - ProcessAfter ilə
         /// </summary>
-        public static int AddToQueue(string type, int priority = 0, DateTime? processAfter = null)
+        public int AddToQueue(string type, int priority = 0, DateTime? processAfter = null)
         {
-            using var db = new ApplicationDbContextFactory().CreateDbContext(new string[0]);
+            return AddToQueueAsync(type, priority, processAfter).Result;
+        }
+
+        /// <summary>
+        /// Yeni queue elementi yarat - ProcessAfter ilə (async)
+        /// </summary>
+        public async Task<int> AddToQueueAsync(string type, int priority = 0, DateTime? processAfter = null)
+        {
             var queue = new Queue
             {
                 Type = type,
@@ -38,8 +65,8 @@ namespace Sigortamat.Services
                 CreatedAt = DateTime.Now
             };
             
-            db.Queues.Add(queue);
-            db.SaveChanges();
+            _context.Queues.Add(queue);
+            await _context.SaveChangesAsync();
             
             string processAfterInfo = processAfter.HasValue ? $" (Process After: {processAfter:dd.MM.yyyy HH:mm})" : "";
             Console.WriteLine($"🔗 Queue yaradıldı: {type} (ID: {queue.Id}, Priority: {priority}){processAfterInfo}");
@@ -51,8 +78,7 @@ namespace Sigortamat.Services
         /// </summary>
         public async Task<Queue?> GetQueueAsync(int queueId)
         {
-            using var db = new ApplicationDbContextFactory().CreateDbContext(new string[0]);
-            return await db.Queues.FindAsync(queueId);
+            return await _context.Queues.FindAsync(queueId);
         }
 
         /// <summary>
@@ -60,30 +86,26 @@ namespace Sigortamat.Services
         /// </summary>
         public async Task UpdateQueueAsync(Queue queue)
         {
-            using var db = new ApplicationDbContextFactory().CreateDbContext(new string[0]);
-            db.Queues.Update(queue);
-            await db.SaveChangesAsync();
+            _context.Queues.Update(queue);
+            await _context.SaveChangesAsync();
         }
 
         /// <summary>
         /// Queue elementini işlənir statusuna keçir
         /// </summary>
-        public static void MarkAsProcessing(int queueId)
+        public void MarkAsProcessing(int queueId)
         {
-            using var db = new ApplicationDbContextFactory().CreateDbContext(new string[0]);
-            var queue = db.Queues.Find(queueId);
+            var queue = _context.Queues.Find(queueId);
             if (queue != null)
             {
-                // ProcessAfter field-ini preserve et
                 var existingProcessAfter = queue.ProcessAfter;
                 queue.Status = "processing";
                 queue.StartedAt = DateTime.Now;
-                // ProcessAfter-i yenidən təyin et (əgər varsa)
                 if (existingProcessAfter.HasValue)
                 {
                     queue.ProcessAfter = existingProcessAfter;
                 }
-                db.SaveChanges();
+                _context.SaveChanges();
                 
                 Console.WriteLine($"🔧 DEBUG MarkAsProcessing - Queue {queueId}: Status=processing, ProcessAfter={queue.ProcessAfter}");
             }
@@ -92,54 +114,89 @@ namespace Sigortamat.Services
         /// <summary>
         /// Queue elementini tamamlanmış kimi işarələ
         /// </summary>
-        public static void MarkAsCompleted(int queueId)
+        public void MarkAsCompleted(int queueId)
         {
-            using var db = new ApplicationDbContextFactory().CreateDbContext(new string[0]);
-            var queue = db.Queues.Find(queueId);
-            if (queue != null)
+            try
             {
-                queue.Status = "completed";
-                queue.CompletedAt = DateTime.Now;
-                db.SaveChanges();
-                
-                Console.WriteLine($"✅ Queue tamamlandı: ID {queueId}");
+                var queue = _context.Queues.Find(queueId);
+                if (queue != null)
+                {
+                    Console.WriteLine($"🔧 DEBUG MarkAsCompleted - Queue {queueId}: Status={queue.Status} -> completed");
+                    
+                    queue.Status = "completed";
+                    queue.CompletedAt = DateTime.Now;
+                    var result = _context.SaveChanges();
+                    
+                    Console.WriteLine($"✅ Queue tamamlandı: ID {queueId}, SaveChanges result: {result}");
+                    
+                    // Yenidən yoxla
+                    var updatedQueue = _context.Queues.Find(queueId);
+                    Console.WriteLine($"🔧 DEBUG MarkAsCompleted - Queue {queueId} after update: Status={updatedQueue?.Status}");
+                }
+                else
+                {
+                    Console.WriteLine($"❌ DEBUG MarkAsCompleted - Queue {queueId} tapılmadı");
+                }
             }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ DEBUG MarkAsCompleted - Exception: {ex.Message}");
+                Console.WriteLine($"❌ Stack Trace: {ex.StackTrace}");
+            }
+        }
+
+        /// <summary>
+        /// Queue elementini ID-yə görə tap
+        /// </summary>
+        public Queue? GetQueueById(int queueId)
+        {
+            return _context.Queues.Find(queueId);
         }
 
         /// <summary>
         /// Queue elementini uğursuz kimi işarələ
         /// </summary>
-        public static void MarkAsFailed(int queueId, string errorMessage)
+        public void MarkAsFailed(int queueId, string errorMessage)
         {
-            using var db = new ApplicationDbContextFactory().CreateDbContext(new string[0]);
-            var queue = db.Queues.Find(queueId);
-            if (queue != null)
+            try
             {
-                queue.Status = "failed";
-                queue.ErrorMessage = errorMessage;
-                queue.RetryCount++;
-                queue.CompletedAt = DateTime.Now;
-                db.SaveChanges();
-                
-                Console.WriteLine($"❌ Queue uğursuz: ID {queueId} - {errorMessage}");
+                var queue = _context.Queues.Find(queueId);
+                if (queue != null)
+                {
+                    Console.WriteLine($"🔧 DEBUG MarkAsFailed - Queue {queueId}: Status={queue.Status} -> failed");
+                    
+                    queue.Status = "failed";
+                    queue.ErrorMessage = errorMessage;
+                    queue.RetryCount++;
+                    queue.CompletedAt = DateTime.Now;
+                    var result = _context.SaveChanges();
+                    
+                    Console.WriteLine($"❌ Queue uğursuz: ID {queueId} - {errorMessage}, SaveChanges result: {result}");
+                    
+                    // Yenidən yoxla
+                    var updatedQueue = _context.Queues.Find(queueId);
+                    Console.WriteLine($"🔧 DEBUG MarkAsFailed - Queue {queueId} after update: Status={updatedQueue?.Status}");
+                }
+                else
+                {
+                    Console.WriteLine($"❌ DEBUG MarkAsFailed - Queue {queueId} tapılmadı");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ DEBUG MarkAsFailed - Exception: {ex.Message}");
+                Console.WriteLine($"❌ Stack Trace: {ex.StackTrace}");
             }
         }
 
         /// <summary>
         /// Gözləyən queue elementlərini gətir - ProcessAfter sahəsini nəzərə alır
         /// </summary>
-        public static List<Queue> GetPendingQueues(string type, int limit = 10)
+        public List<Queue> GetPendingQueues(string type, int limit = 10)
         {
-            using var db = new ApplicationDbContextFactory().CreateDbContext(new string[0]);
-            var now = DateTime.Now;
-            
-            return db.Queues
-                       .Where(q => q.Type == type && 
-                                 q.Status == "pending" &&
-                                 (q.ProcessAfter == null || q.ProcessAfter <= now))
-                       .OrderBy(q => q.Priority)
-                       .ThenBy(q => q.CreatedAt)
-                       .Take(limit)
+            // Timezone kompensasiyası ilə SQL query istifadə et
+            return _context.Queues
+                       .FromSqlRaw("SELECT TOP ({1}) * FROM Queues WHERE Type = {0} AND Status = 'pending' AND (ProcessAfter IS NULL OR ProcessAfter <= DATEADD(HOUR, 4, GETDATE())) ORDER BY Priority, CreatedAt", type, limit)
                        .ToList();
         }
 
@@ -148,19 +205,18 @@ namespace Sigortamat.Services
         /// <summary>
         /// Bütün queue elementlərinin statusunu göstər
         /// </summary>
-        public static void ShowQueueStatus()
+        public void ShowQueueStatus()
         {
             Console.WriteLine("\n📊 QUEUE STATUS:");
             Console.WriteLine("=".PadRight(50, '='));
             
-            using var db = new ApplicationDbContextFactory().CreateDbContext(new string[0]);
-            if (db.Queues.Any())
+            if (_context.Queues.Any())
             {
-                var newTotal = db.Queues.Count();
-                var newCompleted = db.Queues.Count(q => q.Status == "completed");
-                var newFailed = db.Queues.Count(q => q.Status == "failed");
-                var newPending = db.Queues.Count(q => q.Status == "pending");
-                var newProcessing = db.Queues.Count(q => q.Status == "processing");
+                var newTotal = _context.Queues.Count();
+                var newCompleted = _context.Queues.Count(q => q.Status == "completed");
+                var newFailed = _context.Queues.Count(q => q.Status == "failed");
+                var newPending = _context.Queues.Count(q => q.Status == "pending");
+                var newProcessing = _context.Queues.Count(q => q.Status == "processing");
 
                 Console.WriteLine($"📋 Ümumi: {newTotal}");
                 Console.WriteLine($"✅ Tamamlanmış: {newCompleted}");
@@ -171,7 +227,7 @@ namespace Sigortamat.Services
                 if (newPending > 0)
                 {
                     Console.WriteLine("\n⏳ GÖZLƏYƏN QUEUE-LAR:");
-                    var pendingQueues = db.Queues.Where(q => q.Status == "pending")
+                    var pendingQueues = _context.Queues.Where(q => q.Status == "pending")
                                                  .OrderBy(q => q.Priority)
                                                  .ThenBy(q => q.CreatedAt)
                                                  .ToList();
@@ -202,45 +258,90 @@ namespace Sigortamat.Services
         }
         
         /// <summary>
-        /// Queue-u gələcək tarixə yenidən planlaşdır
-        /// Status-u pending-ə qaytarır və ProcessAfter set edir
-        /// RAW SQL istifadə edir - EF Context problemini həll edir
+        /// Mövcud queue-nu gələcək tarix üçün yenidən planlaşdır
         /// </summary>
-        public static void RescheduleJob(int queueId, DateTime processAfter, string reason = "")
+        public void RescheduleJob(int queueId, DateTime processAfter, string? errorMessage = null)
         {
             try
             {
-                using var db = new ApplicationDbContextFactory().CreateDbContext(new string[0]);
-                
                 Console.WriteLine($"🔧 DEBUG RescheduleJob - Queue {queueId} üçün ProcessAfter set edilir: {processAfter:yyyy-MM-dd HH:mm:ss}");
                 
-                // ADO.NET ilə birbaşa SQL update - commit təmin edilir
-                var connectionString = db.Database.GetDbConnection().ConnectionString;
-                db.Dispose();
-                
-                using var sqlConn = new Microsoft.Data.SqlClient.SqlConnection(connectionString);
-                sqlConn.Open();
-                using var sqlCmd = sqlConn.CreateCommand();
-                sqlCmd.CommandText = @"
-                    UPDATE Queues
-                    SET Status = 'pending',
-                        ProcessAfter = @processAfter,
-                        ErrorMessage = @reason,
-                        RetryCount = RetryCount + 1
-                    WHERE Id = @queueId";
-                sqlCmd.Parameters.AddWithValue("@processAfter", processAfter);
-                sqlCmd.Parameters.AddWithValue("@reason", reason ?? string.Empty);
-                sqlCmd.Parameters.AddWithValue("@queueId", queueId);
-                var updated = sqlCmd.ExecuteNonQuery();
-                Console.WriteLine($"🔧 DEBUG RescheduleJob - ADO.NET update result: {updated} sətir yeniləndi");
-                Console.WriteLine($"⏰ Queue {queueId} ADO.NET ilə sabaha planlaşdırıldı: {processAfter:dd.MM.yyyy HH:mm} ({reason})");
-                sqlConn.Close();
+                var queue = _context.Queues.Find(queueId);
+                if (queue != null)
+                {
+                    queue.Status = "pending";
+                    queue.ProcessAfter = processAfter;
+                    queue.ErrorMessage = errorMessage ?? string.Empty;
+                    queue.RetryCount++;
+                    
+                    _context.SaveChanges();
+                    
+                    Console.WriteLine($"✅ Queue {queueId} EF Core ilə sabaha planlaşdırıldı: {processAfter:dd.MM.yyyy HH:mm} ({errorMessage})");
+                }
+                else
+                {
+                    Console.WriteLine($"❌ Queue {queueId} tapılmadı");
+                }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"❌ DEBUG RescheduleJob - Exception: {ex.Message}");
                 Console.WriteLine($"❌ Stack Trace: {ex.StackTrace}");
             }
+        }
+
+        /// <summary>
+        /// Atomically dequeues the next available job and marks it as 'processing'.
+        /// This method uses a transaction and SQL locking to prevent race conditions.
+        /// </summary>
+        /// <param name="type">The type of queue to dequeue from.</param>
+        /// <returns>The dequeued queue item, or null if none are available.</returns>
+        public Queue? DequeueAndMarkAsProcessing(string type)
+        {
+            try
+            {
+                using var transaction = _context.Database.BeginTransaction();
+                
+                var queueItem = _context.Queues
+                    .FromSqlRaw("SELECT TOP 1 * FROM Queues WITH (UPDLOCK, ROWLOCK, READPAST) WHERE Type = {0} AND Status = 'pending' AND (ProcessAfter IS NULL OR ProcessAfter <= DATEADD(HOUR, 4, GETDATE())) ORDER BY Priority, CreatedAt", type)
+                    .ToList() // Execute the query and bring results into memory
+                    .FirstOrDefault();
+
+                if (queueItem != null)
+                {
+                    queueItem.Status = "processing";
+                    queueItem.UpdatedAt = DateTime.Now;
+                    _context.SaveChanges();
+                    transaction.Commit();
+                    
+                    _logger.LogInformation("Dequeued and marked as processing: Queue ID {QueueId}", queueItem.Id);
+                    return queueItem;
+                }
+
+                transaction.Rollback();
+                return null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error while dequeuing job for type {Type}", type);
+                return null;
+            }
+        }
+
+        public async Task<int> CreateQueueAsync(string type, int priority = 1, DateTime? processAfter = null)
+        {
+            var queue = new Queue
+            {
+                Type = type,
+                Status = "pending",
+                Priority = priority,
+                ProcessAfter = processAfter,
+                CreatedAt = DateTime.Now
+            };
+
+            _context.Queues.Add(queue);
+            await _context.SaveChangesAsync();
+            return queue.Id;
         }
     }
 }

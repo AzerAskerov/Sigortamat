@@ -14,21 +14,11 @@ namespace Sigortamat.Jobs
     /// </summary>
     public class InsuranceJobHandler
     {
-        private readonly InsuranceService _insuranceService;
-        private readonly QueueRepository _queueRepository;
-        private readonly IConfiguration _configuration;
+        private readonly IServiceProvider _serviceProvider;
 
-        public InsuranceJobHandler()
+        public InsuranceJobHandler(IServiceProvider serviceProvider)
         {
-            // Konfiqurasiyani oxu
-            var builder = new ConfigurationBuilder()
-                .SetBasePath(AppDomain.CurrentDomain.BaseDirectory)
-                .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
-            _configuration = builder.Build();
-            
-            _queueRepository = new QueueRepository();
-            _insuranceService = new InsuranceService(_configuration, _queueRepository);
-            
+            _serviceProvider = serviceProvider;
             Console.WriteLine($"🔧 Insurance Service rejimi: Real Selenium WebDriver");
         }
 
@@ -36,113 +26,101 @@ namespace Sigortamat.Jobs
         /// Yeni sığorta yoxlama job-u - hər dəqiqə işləyir
         /// </summary>
         [Queue("insurance")]
+        [DisableConcurrentExecution(timeoutInSeconds: 10 * 60)]
         public async Task ProcessInsuranceQueue()
         {
             Console.WriteLine("\n🚗 SİGORTA JOB BAŞLADI (Yeni sistem)");
-            Console.WriteLine("=".PadRight(50, '='));
+
+            // DI pattern - service locator with null checks
+            var queueRepository = (QueueRepository)_serviceProvider.GetService(typeof(QueueRepository));
+            var renewalTrackingService = (RenewalTrackingService)_serviceProvider.GetService(typeof(RenewalTrackingService));
+            var insuranceJobRepository = (InsuranceJobRepository)_serviceProvider.GetService(typeof(InsuranceJobRepository));
+            var insuranceService = (InsuranceService)_serviceProvider.GetService(typeof(InsuranceService));
             
-            // ProcessAfter sahəsini nəzərə alan pending jobs-ları gətir
-            var pendingQueues = QueueRepository.GetPendingQueues("insurance", 5);
+            Console.WriteLine($"🔍 DEBUG: Services - QueueRepo: {queueRepository != null}, RenewalTracking: {renewalTrackingService != null}, JobRepo: {insuranceJobRepository != null}, InsuranceService: {insuranceService != null}");
             
-            if (pendingQueues.Count == 0)
+            if (queueRepository == null || renewalTrackingService == null || insuranceJobRepository == null || insuranceService == null)
             {
-                Console.WriteLine("📋 Proses olunacaq sığorta işi yoxdur");
+                Console.WriteLine("❌ Service resolution failed - one or more services are null");
                 return;
             }
 
-            Console.WriteLine($"📋 {pendingQueues.Count} sığorta queue-u tapıldı");
-
-            foreach (var queue in pendingQueues)
+            int processedCount = 0;
+            while (true)
             {
+                var queue = queueRepository.DequeueAndMarkAsProcessing("insurance");
+
+                if (queue == null)
+                {
+                    // No more jobs to process
+                    break;
+                }
+                
+                processedCount++;
                 var stopwatch = Stopwatch.StartNew();
                 try
                 {
-                    Console.WriteLine($"\n🔄 Queue işlənir: ID {queue.Id} (Type: {queue.Type})");
-                    
-                    // İlk öncə bu queue-ya bağlı InsuranceJob-u tap
-                    var insuranceJob = InsuranceJobRepository.GetInsuranceJobByQueueId(queue.Id);
-                    if (insuranceJob == null)
+                    Console.WriteLine($"\n🔄 Queue işlənir: ID {queue.Id} (Type: {queue.Type}, Status: {queue.Status})");
+
+                    var job = await insuranceJobRepository.GetByQueueIdAsync(queue.Id);
+                    if (job == null)
                     {
-                        Console.WriteLine($"❌ Queue ID {queue.Id} üçün InsuranceJob tapılmadı");
-                        QueueRepository.MarkAsFailed(queue.Id, "InsuranceJob tapılmadı");
+                        Console.WriteLine($"⚠️ Queue {queue.Id} üçün InsuranceJob tapılmadı - data inconsistency");
                         continue;
                     }
-                    
-                    Console.WriteLine($"🚗 Sığorta yoxlanır: {insuranceJob.CarNumber} (CheckDate: {insuranceJob.CheckDate:dd/MM/yyyy})");
-                    
-                    // YENİ API istifadə et - InsuranceJob obyekti göndər
-                    var result = await _insuranceService.CheckInsuranceAsync(insuranceJob);
-                    stopwatch.Stop();
-                    
-                    // Daily limit halında InsuranceJob-u yeniləməyək, çünki bu, əlaqəli Queue-nun
-                    // ProcessAfter sahəsini sıfırlayır.
-                    if (result.ResultText != "DailyLimitExceeded" && result.Status != "rescheduled")
+
+                    var result = await insuranceService.CheckInsuranceAsync(job);
+                    Console.WriteLine($"🔍 DEBUG: InsuranceService result - Success: {result.Success}, ResultText: {result.ResultText}");
+
+                    // Nəticəni dərhal InsuranceJob cədvəlində yenilə
+                    await insuranceJobRepository.UpdateJobResultAsync(job.Id, result, stopwatch.ElapsedMilliseconds);
+
+                    if (result.Success)
                     {
-                        // Nəticələri InsuranceJob-a yenilə
-                        await UpdateInsuranceJobWithResult(insuranceJob, result, stopwatch.ElapsedMilliseconds);
-                    }
-                    
-                    // Nəticəyə görə Queue status təyin et - MarkAsProcessing çağırmırıq
-                    if (result.ResultText == "DailyLimitExceeded" || result.Status == "rescheduled")
-                    {
-                        // Daily limit - RescheduleJob artıq çağırılıb, Queue "pending" və ProcessAfter set edilib
-                        Console.WriteLine($"⏰ Queue ID {queue.Id} sabaha planlaşdırıldı (daily limit)");
-                        continue; // Bu queue üçün daha heç nə etməyək
-                    }
-                    else if (result.Status == "completed")
-                    {
-                        // Normal tamamlanma - sığorta tapıldı və ya tapılmadı
-                        QueueRepository.MarkAsCompleted(queue.Id);
-                        
-                        if (result.IsValid && !string.IsNullOrEmpty(result.Company))
+                        Console.WriteLine($"✅ DEBUG: Result.Success = true, ProcessRenewalResultAsync çağırılır - Job ID: {job.Id}");
+                        try 
                         {
-                            Console.WriteLine($"✅ {insuranceJob.CarNumber} - Sığorta tapıldı, tamamlandı");
+                            await renewalTrackingService.ProcessRenewalResultAsync(job);
+                            queueRepository.MarkAsCompleted(queue.Id);
+                            Console.WriteLine($"✅ DEBUG: ProcessRenewalResultAsync tamamlandı və queue completed - Job ID: {job.Id}");
                         }
-                        else
+                        catch (Exception ex)
                         {
-                            Console.WriteLine($"⚠️ {insuranceJob.CarNumber} - Məlumat tapılmadı, amma job tamamlandı");
+                            Console.WriteLine($"❌ ProcessRenewalResultAsync xətası: {ex.Message}");
+                            Console.WriteLine($"❌ StackTrace: {ex.StackTrace}");
+                            // ProcessRenewalResultAsync xətası olsa da queue-nu failed etmə
+                            // InsuranceService artıq reschedule etmişdir
                         }
                     }
                     else
                     {
-                        // Digər xəta halları
-                        QueueRepository.MarkAsFailed(queue.Id, result.ErrorMessage ?? "Naməlum xəta");
-                        Console.WriteLine($"❌ Queue ID {queue.Id} xəta ilə tamamlandı");
+                        Console.WriteLine($"❌ DEBUG: Result.Success = false, ProcessRenewalResultAsync çağırılmır - Job ID: {job.Id}");
                     }
-                    
-                    // Rate limiting - sayt arasında gecikmə
-                    await Task.Delay(2000);
+                    // Uğursuz olduqda heç bir əməliyyat etmə
+                    // InsuranceService artıq RescheduleJob etmişdir
                 }
                 catch (Exception ex)
                 {
+                    // Global exception - heç bir queue əməliyyatı etmə
+                    // InsuranceService artıq error handling etmişdir
+                    Console.WriteLine($"❌ Xəta (Queue {queue.Id}): {ex.Message}");
+                }
+                finally
+                {
                     stopwatch.Stop();
-                    QueueRepository.MarkAsFailed(queue.Id, ex.Message);
-                    Console.WriteLine($"❌ Xəta: Queue ID {queue.Id} - {ex.Message}");
+                    Console.WriteLine($"✅ İşləmə tamamlandı: {stopwatch.ElapsedMilliseconds} ms");
                 }
             }
 
-            Console.WriteLine($"✅ Sığorta job tamamlandı: {pendingQueues.Count} element işləndi");
-        }
-
-        /// <summary>
-        /// InsuranceJob-u nəticələrlə yenilə
-        /// </summary>
-        private async Task UpdateInsuranceJobWithResult(Sigortamat.Models.InsuranceJob job, Sigortamat.Models.InsuranceResult result, long processingTimeMs)
-        {
-            // Real məlumatları parse et və yenilə
-            job.Company = result.Company;
-            job.VehicleBrand = result.VehicleBrand;
-            job.VehicleModel = result.VehicleModel;
-            job.Status = result.Status;
-            job.ResultText = result.ResultText;
-            job.ProcessingTimeMs = (int)processingTimeMs;
-            job.ProcessedAt = DateTime.Now;
-            
-            // DEBUG: Real məlumatları göstər
-            Console.WriteLine($"🔧 DEBUG - Company: {job.Company}, Brand: {job.VehicleBrand}, Model: {job.VehicleModel}");
-            
-            // Verilənlər bazasına yenilə
-            await InsuranceJobRepository.UpdateInsuranceJobAsync(job);
+            if (processedCount == 0)
+            {
+                Console.WriteLine("==================================================");
+                Console.WriteLine("📋 Proses olunacaq sığorta işi yoxdur");
+            }
+            else
+            {
+                Console.WriteLine($"✅ Sığorta job tamamlandı: {processedCount} element işləndi");
+            }
         }
     }
 }
