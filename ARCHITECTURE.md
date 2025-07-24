@@ -52,19 +52,22 @@ Bu layihə **Hangfire** əsaslı background job sistemidir. Sistem avtomatik ola
 ```
 sigortaYoxla/
 ├── 📂 Models/
-│   └── QueueItem.cs           # Queue məlumatları üçün model
+│   ├── Queue.cs                      # Queue məlumat modeli (yeni sahələr: Priority, RetryCount, ProcessAfter ...)
+│   ├── InsuranceRenewalTracking.cs   # Yenilənmə izləmə prosesi
+│   └── User.cs                       # Avtomobil/istifadəçi məlumatları
 ├── 📂 Services/
-│   ├── QueueRepository.cs     # Queue idarəetməsi
-│   ├── InsuranceService.cs    # Sığorta yoxlama xidməti
-│   └── WhatsAppService.cs     # WhatsApp mesaj göndərmə
+│   ├── QueueRepository.cs            # Queue idarəetməsi
+│   ├── InsuranceService.cs           # Sığorta yoxlama xidməti
+│   ├── WhatsAppService.cs            # WhatsApp mesaj göndərmə
+│   └── RenewalTrackingService.cs     # Yenilənmə tarixini təyin edən servis
 ├── 📂 Jobs/
-│   ├── InsuranceJob.cs        # Sığorta background job-u
-│   └── WhatsAppJob.cs         # WhatsApp background job-u
+│   ├── InsuranceJobHandler.cs        # Sığorta background job-u
+│   └── WhatsAppJob.cs                # WhatsApp background job-u (*/2 cron)
 ├── 📂 whatsapp-bot/
-│   ├── debug-whatsapp.js      # WhatsApp Web.js inteqrasiyası
-│   └── package.json           # Node.js dependencies
-├── Program.cs                 # Ana proqram (Hangfire host)
-└── sigortaYoxla.csproj       # .NET layihə faylı
+│   ├── debug-whatsapp.js             # WhatsApp Web.js inteqrasiyası
+│   └── package.json                  # Node.js dependencies
+├── Program.cs                        # Ana proqram (Hangfire host + logging + DI)
+└── Sigortamat.csproj                # .NET layihə faylı
 ```
 
 ## 🔧 Texniki Spesifikasiyalar
@@ -194,7 +197,7 @@ Hangfire konfiqurasiyası (InMemory storage)
 BackgroundJobServer başlayır (2 worker thread)
     ↓
 Recurring job-lar qurulur:
-    • InsuranceJob - hər dəqiqə
+    • InsuranceJobHandler - hər dəqiqə
     • WhatsAppJob - hər 2 dəqiqə
     ↓
 Manual test job-ları əlavə edilir

@@ -16,6 +16,8 @@ Bu sistem avtomobil sığortasının yenilənmə tarixini avtomatik təyin edir:
 CREATE TABLE Users (
     Id INT IDENTITY(1,1) PRIMARY KEY,
     CarNumber NVARCHAR(20) NOT NULL UNIQUE,
+    PhoneNumber NVARCHAR(20) NULL,
+    NotificationEnabled BIT NOT NULL DEFAULT 1,
     EstimatedRenewalDay INT NULL,
     EstimatedRenewalMonth INT NULL,
     LastConfirmedRenewalDate DATETIME NULL,
@@ -41,12 +43,26 @@ CREATE TABLE InsuranceRenewalTracking (
 ### Mövcud Cədvəllərə Əlavələr
 ```sql
 -- Queues cədvəlinə
-ALTER TABLE Queues ADD ProcessAfter DATETIME NULL
+ALTER TABLE Queues ADD 
+    ProcessAfter DATETIME NULL,
+    Priority INT NOT NULL DEFAULT 1,
+    RetryCount INT NOT NULL DEFAULT 0,
+    ErrorMessage NVARCHAR(MAX) NULL,
+    CompletedAt DATETIME NULL,
+    StartedAt DATETIME NULL,
+    UpdatedAt DATETIME NULL;
 
 -- InsuranceJobs cədvəlinə
 ALTER TABLE InsuranceJobs ADD 
     CheckDate DATETIME NULL,
-    InsuranceRenewalTrackingId INT NULL
+    InsuranceRenewalTrackingId INT NULL,
+    Status NVARCHAR(20) NULL,
+    ProcessingTimeMs INT NULL,
+    ResultText NVARCHAR(MAX) NULL,
+    VehicleBrand NVARCHAR(100) NULL,
+    VehicleModel NVARCHAR(100) NULL,
+    Company NVARCHAR(150) NULL,
+    ProcessedAt DATETIME NULL;
 ```
 
 ## Model Sinifləri
@@ -56,6 +72,8 @@ public class User
 {
     public int Id { get; set; }
     public string CarNumber { get; set; }
+    public string? PhoneNumber { get; set; }
+    public bool NotificationEnabled { get; set; } = true;
     public int? EstimatedRenewalDay { get; set; }
     public int? EstimatedRenewalMonth { get; set; }
     public DateTime? LastConfirmedRenewalDate { get; set; }
@@ -71,7 +89,7 @@ public class InsuranceRenewalTracking
     public DateTime? LastCheckDate { get; set; }
     public DateTime? NextCheckDate { get; set; }
     public int ChecksPerformed { get; set; } = 0;
-    public string LastCheckResult { get; set; }
+    public string? LastCheckResult { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.Now;
     public DateTime? UpdatedAt { get; set; }
     public User User { get; set; }

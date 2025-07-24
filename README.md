@@ -208,3 +208,18 @@ Hər hansı problem olduqda issue açın və ya pull request göndərin.
 - Rate limiting-ə diqqət edin (spam kimi qəbul edilə bilər)
 - Auth məlumatlarını (.auth_data/) git-ə commit etməyin
 - Database credentials-ı production-da environment variables ilə idarə edin
+
+## 🧪 Nümunə Test Avtomobil Nömrələri
+
+Sınaq məqsədi ilə `setup_single_test.sql` və ya API testləri edərkən aşağıdakı dövlət qeydiyyat nişanlarından istənilən birini **təsadüfi** seçib istifadə etmək tövsiyə olunur. Bu nömrələr real istifadəçilə əlaqəli deyil və yalnız test üçün nəzərdə tutulub.
+
+```
+99JP083  99JL074  99JP086  99JL076  99JL075  90AM566
+90AM533  99JP075  99JP087  77JG472  99JK047  99JP081
+77JV167  99JS099  90JC930  90JK930  99JF483  99JV526
+77JG327  77JK538  77JK590  99JF842  77JD145  77JB587
+01AD795  01AD794  50CY385  55CE825  77QY058  77DX441
+77RQ865  20CZ125  77KY920  74BB838  99ZY083
+```
+
+`setup_single_test.sql` skriptində sadəcə `@CarNumber` dəyişənini bu siyahıdan seçdiyiniz nömrə ilə əvəz edin. Sistem hər dəfə təmizlənərək yeni sınaq mühitini avtomatik quracaq.

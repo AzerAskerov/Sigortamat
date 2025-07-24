@@ -112,7 +112,7 @@ namespace Sigortamat
             using var server = new BackgroundJobServer(new BackgroundJobServerOptions
             {
                 Queues = new[] { "insurance", "whatsapp", "default" },
-                WorkerCount = 1 // 1 işçi thread (iki browser açılmasın)
+                WorkerCount = 2 // 2 işçi thread - insurance və whatsapp paralel
             });
 
             Console.WriteLine("🎯 Hangfire Server başladı");
@@ -249,11 +249,11 @@ namespace Sigortamat
                 job => job.ProcessInsuranceQueue(),
                 Cron.Minutely);
 
-            // WhatsApp mesaj job-u - hər 5 dəqiqə  
+            // WhatsApp mesaj job-u - hər 2 dəqiqə  
             RecurringJob.AddOrUpdate<WhatsAppJob>(
                 "whatsapp-send",
                 job => job.ProcessWhatsAppQueue(),
-                "*/5 * * * *"); // Hər 5 dəqiqə
+                "*/2 * * * *"); // Hər 2 dəqiqə
         }
 
         /// <summary>
