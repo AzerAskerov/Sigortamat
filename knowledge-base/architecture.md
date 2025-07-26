@@ -376,4 +376,4 @@ Sistemdə *lead* yarandıqda adminə Telegram vasitəsilə təsdiqləmə (approv
 - Insurance job - hər dəqiqə
 - WhatsApp job - hər 2 dəqiqə
 - **YENİ**: Telegram approval system ⭐
-- **YENİ**: Lead generation workflow ⭐
+- **YENİ**: Lead generation workflow ⭐ 

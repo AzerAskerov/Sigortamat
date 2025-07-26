@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace Sigortamat.Models
 {
@@ -25,5 +26,9 @@ namespace Sigortamat.Models
         public bool NotificationEnabled { get; set; } = true;
         public DateTime CreatedAt { get; set; } = DateTime.Now;
         public DateTime? UpdatedAt { get; set; }
+        
+        // Navigation properties
+        public ICollection<Lead> Leads { get; set; } = new List<Lead>();
+        public ICollection<InsuranceRenewalTracking> InsuranceRenewalTrackings { get; set; } = new List<InsuranceRenewalTracking>();
     }
 }

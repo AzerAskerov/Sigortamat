@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Sigortamat.Data;
 
@@ -11,9 +12,11 @@ using Sigortamat.Data;
 namespace Sigortamat.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250726124456_AddNotificationsTable")]
+    partial class AddNotificationsTable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -227,9 +230,6 @@ namespace Sigortamat.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("CarNumber")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<DateTime?>("CompletedAt")
                         .HasColumnType("datetime2");
 
@@ -242,12 +242,6 @@ namespace Sigortamat.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
 
-                    b.Property<string>("Message")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("PhoneNumber")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<int>("Priority")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int")
@@ -258,9 +252,6 @@ namespace Sigortamat.Migrations
 
                     b.Property<DateTime?>("ProcessedAt")
                         .HasColumnType("datetime2");
-
-                    b.Property<int?>("RefId")
-                        .HasColumnType("int");
 
                     b.Property<int>("RetryCount")
                         .ValueGeneratedOnAdd()

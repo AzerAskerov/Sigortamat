@@ -13,24 +13,33 @@ namespace Sigortamat.Services
     public class WhatsAppJobRepository
     {
         private readonly ApplicationDbContext _context;
-        private readonly QueueRepository _queueRepository;
 
-        public WhatsAppJobRepository(ApplicationDbContext context, QueueRepository queueRepository)
+        public WhatsAppJobRepository(ApplicationDbContext context)
         {
             _context = context;
-            _queueRepository = queueRepository;
         }
 
         /// <summary>
         /// Yeni WhatsApp mesaj işi yarat
         /// </summary>
-        public int CreateWhatsAppJob(string phoneNumber, string messageText, int priority = 0)
+        public int CreateWhatsAppJob(string phoneNumber, string messageText, int notificationId)
         {
-            int queueId = _queueRepository.AddToQueue("whatsapp", priority);
-            
+            var queueItem = new Queue
+            {
+                Type = "whatsapp", // The queue type for the old system
+                Status = "pending",
+                Priority = 0,
+                CreatedAt = DateTime.UtcNow,
+                RefId = notificationId,
+                PhoneNumber = phoneNumber,
+                Message = messageText
+            };
+            _context.Queues.Add(queueItem);
+            _context.SaveChanges();
+
             var whatsAppJob = new WhatsAppJob
             {
-                QueueId = queueId,
+                QueueId = queueItem.Id, // Link to the new queue item
                 PhoneNumber = phoneNumber,
                 MessageText = messageText,
                 DeliveryStatus = "pending"
@@ -38,8 +47,8 @@ namespace Sigortamat.Services
             _context.WhatsAppJobs.Add(whatsAppJob);
             _context.SaveChanges();
             
-            Console.WriteLine($"📱 Yeni WhatsApp mesaj işi yaradıldı: {phoneNumber} (Queue ID: {queueId})");
-            return queueId;
+            Console.WriteLine($"📱 Old system WhatsApp job created: {phoneNumber} (Queue ID: {queueItem.Id})");
+            return queueItem.Id;
         }
         
         /// <summary>

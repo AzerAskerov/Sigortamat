@@ -659,4 +659,4 @@ Bu sistem artıq 5 tamamlanmış mərhələdə işləyir:
 4. **FinalCheck**: Təxmini tarix + renewal window hesablanır + Lead yaradılır
 5. **Notification System**: Telegram admin approval + WhatsApp göndərmə
 
-Hər mərhələdə ISB.az-ın gündəlik limitlərinə hörmət edilir və sistem avtomatik olaraq növbəti günə təxirə salır. **YENİ**: Lead management və Telegram approval sistemi tam işlək vəziyyətdədir.
+Hər mərhələdə ISB.az-ın gündəlik limitlərinə hörmət edilir və sistem avtomatik olaraq növbəti günə təxirə salır. **YENİ**: Lead management və Telegram approval sistemi tam işlək vəziyyətdədir. 

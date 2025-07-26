@@ -21,6 +21,8 @@ namespace Sigortamat.Data
         public DbSet<InsuranceRenewalTracking> InsuranceRenewalTracking { get; set; }
         // Leads
         public DbSet<Lead> Leads { get; set; }
+        // Notifications
+        public DbSet<Notification> Notifications { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -84,12 +86,27 @@ namespace Sigortamat.Data
                 entity.HasKey(e => e.Id);
                 entity.Property(e => e.LeadType).IsRequired().HasMaxLength(50);
                 entity.Property(e => e.Notes).HasMaxLength(1000);
-
                 entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETDATE()");
 
-                entity.HasOne<User>()
-                      .WithMany()
+                // Foreign key relationship
+                entity.HasOne(e => e.User)
+                      .WithMany(u => u.Leads)
                       .HasForeignKey(e => e.UserId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<Notification>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Channel).IsRequired().HasMaxLength(10).HasDefaultValue("wa");
+                entity.Property(e => e.Message).IsRequired().HasMaxLength(2000);
+                entity.Property(e => e.Status).IsRequired().HasMaxLength(20).HasDefaultValue("pending");
+                entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETDATE()");
+
+                // Foreign key relationship
+                entity.HasOne(e => e.Lead)
+                      .WithMany(l => l.Notifications)
+                      .HasForeignKey(e => e.LeadId)
                       .OnDelete(DeleteBehavior.Cascade);
             });
 

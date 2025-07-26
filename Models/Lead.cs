@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace Sigortamat.Models
 {
@@ -17,5 +18,9 @@ namespace Sigortamat.Models
         public string? Notes { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.Now;
         public bool IsConverted { get; set; } = false;
+        
+        // Navigation properties
+        public User User { get; set; } = null!;
+        public ICollection<Notification> Notifications { get; set; } = new List<Notification>();
     }
 } 

@@ -40,6 +40,4 @@ All notable changes to this project will be documented in this file.
 - Updated documentation in ARCHITECTURE.md and insurance-renewal.md.
 
 ### Removed
-- Web layer/controller references (console-only application).
-
---- 
+- Web layer/controller references (console-only application). 

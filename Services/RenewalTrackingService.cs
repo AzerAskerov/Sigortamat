@@ -18,17 +18,20 @@ namespace Sigortamat.Services
         private readonly ApplicationDbContext _context;
         private readonly QueueRepository _queueRepository;
         private readonly InsuranceJobRepository _insuranceJobRepository;
+        private readonly LeadService _leadService;
         private readonly ILogger<RenewalTrackingService> _logger;
 
         public RenewalTrackingService(
             ApplicationDbContext context,
             QueueRepository queueRepository,
             InsuranceJobRepository insuranceJobRepository,
+            LeadService leadService,
             ILogger<RenewalTrackingService> logger)
         {
             _context = context;
             _queueRepository = queueRepository;
             _insuranceJobRepository = insuranceJobRepository;
+            _leadService = leadService;
             _logger = logger;
         }
 
@@ -186,6 +189,10 @@ namespace Sigortamat.Services
                     Notes = "İlk sorğuda sığorta məlumatı tapılmadı"
                 };
                 _context.Leads.Add(lead);
+                await _context.SaveChangesAsync();
+
+                // Notification yaradılması
+                await _leadService.CreateNotificationForLeadAsync(lead);
 
                 tracking.CurrentPhase = "Completed";
                 tracking.NextCheckDate = null; // Daha yoxlama etməyəcək
@@ -536,7 +543,24 @@ namespace Sigortamat.Services
             user.RenewalWindowEnd = laterJob.CheckDate?.Date;
             user.UpdatedAt = DateTime.Now;
 
-            _logger.LogInformation("Updated user {UserId} with estimated renewal date: {Day}/{Month}", 
+            await _context.SaveChangesAsync();
+
+            // RenewalWindow lead yarat
+            var lead = new Lead
+            {
+                UserId = userId,
+                CarNumber = user.CarNumber,
+                LeadType = "RenewalWindow",
+                Notes = $"Yenilənmə tarixi: {midDate:dd/MM/yyyy}, Interval: {user.RenewalWindowStart:dd/MM} - {user.RenewalWindowEnd:dd/MM}"
+            };
+            
+            _context.Leads.Add(lead);
+            await _context.SaveChangesAsync();
+            
+            // Notification approval prosesi
+            await _leadService.CreateNotificationForLeadAsync(lead);
+
+            _logger.LogInformation("Updated user {UserId} with estimated renewal date: {Day}/{Month} and created RenewalWindow lead", 
                 userId, user.EstimatedRenewalDay, user.EstimatedRenewalMonth);
         }
 
