@@ -1,16 +1,44 @@
 # Sigortamat
 
-Avtomatlaşdırılmış sığorta sistemi - Sığorta yoxlaması və WhatsApp mesaj avtomatlaşdırması.
+Avtomatlaşdırılmış sığorta sistemi - Sığorta yoxlaması və WhatsApp mesaj avtomatlaşdırması + **YENİ**: Lead idarəetməsi və Telegram admin təsdiqi.
+
+## 🆕 Yeni Xüsusiyyətlər (v0.3.0)
+- 🤖 **Telegram Bot Approval**: Admin WhatsApp mesajları göndərilməzdən əvvəl Telegram vasitəsilə təsdiqləyir
+- 📊 **Lead Management**: Potensial satış imkanları avtomatik aşkarlanır və izlənilir
+- 📅 **Renewal Window Tracking**: Daha dəqiq yenilənmə tarix intervalları
+- 🎯 **Enhanced Binary Search**: Şirkət dəyişiklikləri əsasında yenilənmə tarixləri axtarışı
 
 ## Başlatma
-1. `appsettings.json`-da connection string qur
+1. `appsettings.json`-da connection string və Telegram bot konfiqurasiyası qur
 2. `dotnet run`
 3. Dashboard: http://localhost:5000/hangfire
+4. Telegram bot avtomatik başlayır və admin approval-ları gözləyir
 
 ## Stack
 - .NET 9.0 + EF Core
 - Hangfire + Azure SQL
 - Selenium WebDriver
+- **YENİ**: Telegram.Bot API
+- **YENİ**: Lead & Notification Pipeline
+
+## 🤖 Telegram Bot Konfiqurasiyası
+
+```json
+{
+  "Telegram": {
+    "BotToken": "8399345423:AAF9cf9mvp4il39G4N8_vQu6Xu-5cxkgKDM",
+    "AdminId": 1762884854
+  }
+}
+```
+
+### Telegram Approval Axını
+1. **Lead yaranır** (məs: sığorta tapılmır)
+2. **Notification yaradılır** (pending status)
+3. **Telegram bot admin-ə mesaj göndərir** təsdiqləmə düyməsi ilə
+4. **Admin "✅ APPROVE" basır**
+5. **WhatsApp queue-ya əlavə edilir**
+6. **WhatsApp mesajı göndərilir**
 
 ## 🎯 İstifadə
 
@@ -21,8 +49,24 @@ dotnet run
 
 Bu komanda:
 1. Avtomobil nömrələrini yoxlayır
-2. Nəticələri formatlayır  
-3. WhatsApp mesajları göndərir
+2. Lead-ləri avtomatik yaradır
+3. Telegram vasitəsilə admin təsdiqi alır
+4. Təsdiqlənmiş mesajları WhatsApp vasitəsilə göndərir
+
+## 📊 Lead Management Sistemi
+
+### Lead Tipləri
+- **NoInsuranceImmediate**: Dərhal sığorta tapılmır
+- **RenewalWindow**: Yenilənmə tarixi müəyyənləşib
+- **CompanyChange**: Sığorta şirkəti dəyişib
+
+### Lead Yaratma Nümunəsi
+```sql
+-- Manual lead yaratma test üçün
+INSERT INTO Users (CarNumber) VALUES ('TEST123');
+DECLARE @UserId INT = SCOPE_IDENTITY();
+INSERT INTO Leads (UserId, CarNumber, LeadType) VALUES (@UserId, 'TEST123', 'NoInsuranceImmediate');
+```
 
 ## 🗄️ Azure SQL Database Query-ləri
 
@@ -47,7 +91,19 @@ VS Code-da Azure SQL database ilə işləmək üçün MCP server konfiqurasiya e
 }
 ```
 
-### SQL Query Nümunələri
+### YENİ SQL Query Nümunələri
+
+#### Lead & Notification Status:
+```bash
+# Pending notifications yoxla
+sqlcmd -S sigortayoxla.database.windows.net -d SigortamatDb -U a.azar1988 -P "54EhP6.G@RKcp8#" -Q "SELECT l.CarNumber, n.Message, n.Status, n.CreatedAt FROM Notifications n JOIN Leads l ON n.LeadId = l.Id WHERE n.Status = 'pending' ORDER BY n.CreatedAt DESC"
+
+# Lead statistikaları
+sqlcmd -S sigortayoxla.database.windows.net -d SigortamatDb -U a.azar1988 -P "54EhP6.G@RKcp8#" -Q "SELECT LeadType, COUNT(*) as Count, COUNT(CASE WHEN IsConverted = 1 THEN 1 END) as Converted FROM Leads GROUP BY LeadType"
+
+# User renewal windows
+sqlcmd -S sigortayoxla.database.windows.net -d SigortamatDb -U a.azar1988 -P "54EhP6.G@RKcp8#" -Q "SELECT CarNumber, RenewalWindowStart, RenewalWindowEnd, EstimatedRenewalDay, EstimatedRenewalMonth FROM Users WHERE RenewalWindowStart IS NOT NULL ORDER BY RenewalWindowStart"
+```
 
 #### Command Line ilə Query:
 ```bash
@@ -73,12 +129,14 @@ VS Code-da MCP server aktiv olduqda AI chat-də belə suallar verə bilərsiniz:
 - "Azure SQL database-də QueueItems table-ından son 10 record-u göstər"
 - "WhatsApp type-ında neçə pending job var?"
 - "Bu gün yaradılmış bütün queue item-ləri göstər"
+- **YENİ**: "Pending approval notification-ları göstər"
+- **YENİ**: "NoInsuranceImmediate lead-lərini göstər"
 
-### Database Schema
+### Database Schema (Yenilənmiş)
 ```sql
 -- QueueItems table columns:
 Id (int) - Primary key
-Type (nvarchar) - 'insurance' və ya 'whatsapp' 
+Type (nvarchar) - 'insurance', 'whatsapp', 'whatsapp-notification'
 CarNumber (nvarchar) - Avtomobil nömrəsi
 PhoneNumber (nvarchar) - Telefon nömrəsi
 Message (nvarchar) - WhatsApp mesajı
@@ -86,6 +144,29 @@ IsProcessed (bit) - İşlənib/işlənməyib
 CreatedAt (datetime2) - Yaradılma tarixi
 ProcessedAt (datetime2) - İşlənmə tarixi
 Error (nvarchar) - Xəta mesajı
+
+-- YENİ: Leads table
+Id (int) - Primary key
+UserId (int) - Foreign key to Users
+CarNumber (nvarchar) - Avtomobil nömrəsi
+LeadType (nvarchar) - 'NoInsuranceImmediate', 'RenewalWindow', etc.
+Notes (nvarchar) - Əlavə qeydlər
+CreatedAt (datetime2) - Yaradılma tarixi
+IsConverted (bit) - Lead çevrildi/çevrilmədi
+
+-- YENİ: Notifications table
+Id (int) - Primary key
+LeadId (int) - Foreign key to Leads
+Channel (nvarchar) - 'wa' (WhatsApp)
+Message (nvarchar) - Göndəriləcək mesaj
+Status (nvarchar) - 'pending', 'approved', 'sent', 'error'
+CreatedAt (datetime2) - Yaradılma tarixi
+ApprovedAt (datetime2) - Təsdiqləmə tarixi
+SentAt (datetime2) - Göndərilmə tarixi
+
+-- YENİ: Users table extensions
+RenewalWindowStart (datetime2) - Yenilənmə intervalının başlanğıcı
+RenewalWindowEnd (datetime2) - Yenilənmə intervalının sonu
 ```
 
 ### Ayrı-ayrılıqda WhatsApp İstifadəsi
@@ -108,13 +189,28 @@ cd whatsapp-bot
 node whatsapp-sender.js test
 ```
 
-## 📁 Fayl Strukturu
+## 📁 Fayl Strukturu (Yenilənmiş)
 
 ```
 sigortamat/
-├── Program.cs              # Əsas proqram
+├── Program.cs              # Əsas proqram + Telegram bot
 ├── SigortaChecker.cs       # Selenium sığorta yoxlayıcısı
 ├── WhatsAppService.cs      # WhatsApp xidməti
+├── Models/
+│   ├── Lead.cs ⭐          # YENİ: Lead modeli
+│   ├── Notification.cs ⭐   # YENİ: Notification modeli
+│   └── User.cs             # User (+ renewal window sahələri)
+├── Services/
+│   ├── TelegramBotService.cs ⭐      # YENİ: Telegram bot
+│   ├── LeadService.cs ⭐             # YENİ: Lead idarəetməsi
+│   ├── NotificationService.cs ⭐     # YENİ: Notification approval
+│   ├── RenewalTrackingService.cs    # Renewal tracking (enhanced)
+│   ├── InsuranceService.cs          # Insurance checking
+│   └── WhatsAppService.cs           # WhatsApp service
+├── Jobs/
+│   ├── TelegramBotHostedService.cs ⭐ # YENİ: Telegram background service
+│   ├── InsuranceJob.cs              # Insurance job
+│   └── WhatsAppJob.cs               # WhatsApp job
 ├── azure-sql-test.sql      # SQL query nümunələri
 ├── .vscode/
 │   ├── settings.json       # MCP server konfiqurasiyası
@@ -149,6 +245,17 @@ private static string GetPhoneNumberForCar(string carNumber)
 ### WhatsApp Mesaj Formatı
 `WhatsAppService.cs`-də `FormatInsuranceMessage` funksiyasını öz ehtiyacınıza görə redaktə edin.
 
+### YENİ: Telegram Bot Konfiqurasiyası ⭐
+`appsettings.json`-da:
+```json
+{
+  "Telegram": {
+    "BotToken": "8399345423:AAF9cf9mvp4il39G4N8_vQu6Xu-5cxkgKDM",
+    "AdminId": 1762884854
+  }
+}
+```
+
 ## 📱 WhatsApp Bot Xüsusiyyətləri
 
 - **QR Authentication**: İlk dəfə QR kod skan edin
@@ -156,6 +263,15 @@ private static string GetPhoneNumberForCar(string carNumber)
 - **Bulk Messaging**: Çox mesaj paralel göndərə bilir
 - **Error Handling**: Uğursuz mesajları qeyd edir
 - **Rate Limiting**: Mesajlar arası 2 saniyə gözləmə
+- **YENİ**: Admin approval integration ⭐
+
+## 🤖 Telegram Bot Xüsusiyyətləri ⭐
+
+- **Long-polling**: HTTP webhook tələb etmir
+- **Inline Keyboard**: Təsdiqləmə düymələri
+- **Admin Authorization**: Yalnız konfigurasiya edilmiş admin
+- **Error Recovery**: Avtomatik reconnection
+- **Real-time Approval**: Dərhal mesaj təsdiqi
 
 ## 🔄 Queue İşləri üçün İstifadə
 
@@ -164,6 +280,8 @@ Bu sistem təkrarlanan işlər üçün hazır hazırlanmışdır:
 1. **Scheduled Jobs**: Cron job və ya Windows Task Scheduler ilə
 2. **Message Queue**: RabbitMQ, Azure Service Bus və s. ilə inteqrasiya
 3. **Database Integration**: Avtomobil-telefon mapping-i üçün
+4. **YENİ**: Lead tracking və conversion analytics ⭐
+5. **YENİ**: Telegram approval pipeline ⭐
 
 ## 🛠️ Problemlərin Həlli
 
@@ -197,6 +315,15 @@ sqlcmd -S sigortayoxla.database.windows.net -d SigortamatDb -U a.azar1988 -P "54
 code --list-extensions | findstr mssql
 ```
 
+### YENİ: Telegram Bot Issues ⭐
+```bash
+# Telegram bot token yoxla
+curl "https://api.telegram.org/bot8399345423:AAF9cf9mvp4il39G4N8_vQu6Xu-5cxkgKDM/getMe"
+
+# Admin ID doğrula
+curl "https://api.telegram.org/bot8399345423:AAF9cf9mvp4il39G4N8_vQu6Xu-5cxkgKDM/getUpdates"
+```
+
 ## 📞 Dəstək
 
 Hər hansı problem olduqda issue açın və ya pull request göndərin.
@@ -208,6 +335,8 @@ Hər hansı problem olduqda issue açın və ya pull request göndərin.
 - Rate limiting-ə diqqət edin (spam kimi qəbul edilə bilər)
 - Auth məlumatlarını (.auth_data/) git-ə commit etməyin
 - Database credentials-ı production-da environment variables ilə idarə edin
+- **YENİ**: Telegram bot token-unu təhlükəsiz saxlayın ⭐
+- **YENİ**: Admin approval prosesini test edin ⭐
 
 ## 🧪 Nümunə Test Avtomobil Nömrələri
 
@@ -223,3 +352,10 @@ Sınaq məqsədi ilə `setup_single_test.sql` və ya API testləri edərkən aş
 ```
 
 `setup_single_test.sql` skriptində sadəcə `@CarNumber` dəyişənini bu siyahıdan seçdiyiniz nömrə ilə əvəz edin. Sistem hər dəfə təmizlənərək yeni sınaq mühitini avtomatik quracaq.
+
+### YENİ: Bulk Test Data ⭐
+15 maşın üçün bulk test data yaratmaq:
+```bash
+# SQL script işə sal
+sqlcmd -S sigortayoxla.database.windows.net -d SigortamatDb -U a.azar1988 -P "54EhP6.G@RKcp8#" -i setup_bulk_test.sql
+```

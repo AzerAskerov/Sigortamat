@@ -6,67 +6,86 @@ Bu layihə **Hangfire** əsaslı background job sistemidir. Sistem avtomatik ola
 - 🚗 Avtomobil sığorta məlumatlarını yoxlayır
 - 📱 WhatsApp vasitəsilə müştərilərə məlumat göndərir
 - 📊 Queue əsaslı task idarəetməsi həyata keçirir
+- 🔔 **YENİ**: Lead idarəetməsi və Telegram vasitəsilə admin təsdiqi
+- 🤖 **YENİ**: Telegram bot ilə notification təsdiqləmə sistemi
 
 ## 🏗️ Arxitektura Sxemi
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                     SİGORTA YOXLA SİSTEMİ                   │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐     │
-│  │   Program   │    │   Models    │    │  Services   │     │
-│  │             │    │             │    │             │     │
-│  │ - Main()    │    │ QueueItem   │    │QueueRepo    │     │
-│  │ - Hangfire  │    │             │    │Insurance    │     │
-│  │   Config    │    │             │    │WhatsApp     │     │
-│  └─────────────┘    └─────────────┘    └─────────────┘     │
-│         │                   │                   │          │
-│         └───────────────────┼───────────────────┘          │
-│                             │                              │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │                HANGFIRE JOBS                        │   │
-│  │                                                     │   │
-│  │  ┌─────────────┐              ┌─────────────┐      │   │
-│  │  │InsuranceJob │              │WhatsAppJob  │      │   │
-│  │  │             │              │             │      │   │
-│  │  │Hər dəqiqə   │              │Hər 2 dəqiqə │      │   │
-│  │  │işləyir      │              │işləyir      │      │   │
-│  │  └─────────────┘              └─────────────┘      │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                             │                              │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │                 XARICI SİSTEMLƏR                    │   │
-│  │                                                     │   │
-│  │  ┌─────────────┐              ┌─────────────┐      │   │
-│  │  │  Selenium   │              │ WhatsApp    │      │   │
-│  │  │ (Sığorta    │              │ Web.js      │      │   │
-│  │  │  Saytları)  │              │ (Node.js)   │      │   │
-│  │  └─────────────┘              └─────────────┘      │   │
-│  └─────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           SİGORTA YOXLA SİSTEMİ                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐  ┌─────────────┐    │
+│  │   Program   │    │   Models    │    │  Services   │  │   Jobs      │    │
+│  │             │    │             │    │             │  │             │    │
+│  │ - Main()    │    │ User        │    │QueueRepo    │  │InsuranceJob │    │
+│  │ - Hangfire  │    │ Queue       │    │Insurance    │  │WhatsAppJob  │    │
+│  │   Config    │    │ Lead ⭐     │    │WhatsApp     │  │TelegramJob⭐│    │
+│  │ - Telegram  │    │ Notification│    │Telegram⭐   │  │             │    │
+│  │   Bot ⭐    │    │             │    │Lead⭐       │  │             │    │
+│  └─────────────┘    └─────────────┘    └─────────────┘  └─────────────┘    │
+│         │                   │                   │               │          │
+│         └───────────────────┼───────────────────┼───────────────┘          │
+│                             │                   │                          │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                      HANGFIRE JOBS                                 │   │
+│  │                                                                     │   │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────────┐  │   │
+│  │  │InsuranceJob │  │WhatsAppJob  │  │     TelegramBotService      │  │   │
+│  │  │             │  │             │  │                             │  │   │
+│  │  │Hər dəqiqə   │  │Hər 2 dəqiqə │  │ Admin approval requests     │  │   │
+│  │  │işləyir      │  │işləyir      │  │ Lead notifications ⭐       │  │   │
+│  │  └─────────────┘  └─────────────┘  └─────────────────────────────┘  │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                             │                                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                    LEAD & NOTIFICATION FLOW ⭐                     │   │
+│  │                                                                     │   │
+│  │  Lead Created → Notification (Pending) → Telegram Approval →       │   │
+│  │  Admin Approval → WhatsApp Queue → Message Sent                    │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                             │                                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                 XARICI SİSTEMLƏR                                    │   │
+│  │                                                                     │   │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────────┐  │   │
+│  │  │  Selenium   │  │ WhatsApp    │  │     Telegram Bot API ⭐     │  │   │
+│  │  │ (Sığorta    │  │ Web.js      │  │                             │  │   │
+│  │  │  Saytları)  │  │ (Node.js)   │  │ Long-polling updates        │  │   │
+│  │  └─────────────┘  └─────────────┘  └─────────────────────────────┘  │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
+
+⭐ **Yeni Komponentlər** - 0.3.0 versiyasında əlavə edilib
 
 ## 📁 Layihə Strukturu
 
 ```
 sigortaYoxla/
 ├── 📂 Models/
-│   ├── Queue.cs                      # Queue məlumat modeli (yeni sahələr: Priority, RetryCount, ProcessAfter ...)
+│   ├── Queue.cs                      # Queue məlumat modeli (Priority, RetryCount, ProcessAfter)
 │   ├── InsuranceRenewalTracking.cs   # Yenilənmə izləmə prosesi
-│   └── User.cs                       # Avtomobil/istifadəçi məlumatları
+│   ├── User.cs                       # Avtomobil/istifadəçi (+ RenewalWindow sahələri ⭐)
+│   ├── Lead.cs ⭐                    # Potensial satış lead-ləri
+│   └── Notification.cs ⭐            # Notification təsdiqi sistemi
 ├── 📂 Services/
 │   ├── QueueRepository.cs            # Queue idarəetməsi
 │   ├── InsuranceService.cs           # Sığorta yoxlama xidməti
 │   ├── WhatsAppService.cs            # WhatsApp mesaj göndərmə
-│   └── RenewalTrackingService.cs     # Yenilənmə tarixini təyin edən servis
+│   ├── RenewalTrackingService.cs     # Yenilənmə tarixini təyin edən servis
+│   ├── TelegramBotService.cs ⭐      # Telegram bot approval sistemi
+│   ├── LeadService.cs ⭐             # Lead yaratma və idarəetmə
+│   └── NotificationService.cs ⭐     # Notification approval idarəetməsi
 ├── 📂 Jobs/
 │   ├── InsuranceJobHandler.cs        # Sığorta background job-u
-│   └── WhatsAppJob.cs                # WhatsApp background job-u (*/2 cron)
+│   ├── WhatsAppJob.cs                # WhatsApp background job-u (*/2 cron)
+│   └── TelegramBotHostedService.cs ⭐ # Telegram bot background service
 ├── 📂 whatsapp-bot/
 │   ├── debug-whatsapp.js             # WhatsApp Web.js inteqrasiyası
 │   └── package.json                  # Node.js dependencies
-├── Program.cs                        # Ana proqram (Hangfire host + logging + DI)
+├── Program.cs                        # Ana proqram (Hangfire + Telegram host + logging + DI)
 └── Sigortamat.csproj                # .NET layihə faylı
 ```
 
@@ -75,256 +94,261 @@ sigortaYoxla/
 ### Framework və Kitabxanalar
 - **Platform**: .NET 9.0 Console Application
 - **Background Jobs**: Hangfire Framework
-- **Storage**: Hangfire InMemory (development üçün)
+- **Storage**: Hangfire SQL Server + EF Core
 - **Web Automation**: Selenium WebDriver
 - **Messaging**: WhatsApp Web.js (Node.js)
+- **Bot Framework**: Telegram.Bot ⭐
+- **Hosted Services**: IHostedService for Telegram bot ⭐
 
 ### Packages
 ```xml
 <!-- Hangfire -->
 <PackageReference Include="Hangfire.Core" Version="1.8.17" />
-<PackageReference Include="Hangfire.InMemory" Version="1.0.0" />
 <PackageReference Include="Hangfire.SqlServer" Version="1.8.17" />
 <PackageReference Include="Hangfire.AspNetCore" Version="1.8.17" />
+
+<!-- EF Core -->
+<PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.0" />
+<PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.0" />
 
 <!-- Selenium -->
 <PackageReference Include="DotNetSeleniumExtras.WaitHelpers" Version="3.11.0" />
 <PackageReference Include="Selenium.Support" Version="4.34.0" />
 <PackageReference Include="Selenium.WebDriver" Version="4.34.0" />
 <PackageReference Include="Selenium.WebDriver.ChromeDriver" Version="138.0.7204.9400" />
+
+<!-- Telegram Bot ⭐ -->
+<PackageReference Include="Telegram.Bot" Version="21.0.0" />
 ```
 
-## 🗂️ Komponentlər Təfsilatı
+## 🔔 YENİ: Lead & Notification Sistemi
 
-### 1. 📄 Models/QueueItem.cs
-**Məqsəd**: Queue elementləri üçün data model
+### Lead Yaranma Ssenarilərə
+1. **NoInsuranceImmediate**: İlk sığorta sorğusunda məlumat tapılmır
+2. **RenewalWindow**: Sığorta yenilənmə tarixi müəyyənləşir
+3. **CompanyChange**: Sığorta şirkəti dəyişikliyi aşkarlanır
+
+### Notification Approval Axını
+```
+Lead Yaranır → Notification (WaitingApprove) → Telegram bot admin-ə göndərir
+    ↓
+Admin "✅ APPROVE" düyməsini basır → Status: Approved → WhatsApp Queue
+    ↓
+WhatsApp Job mesajı göndərir → Status: Sent
+```
+
+### Telegram Bot Xüsusiyyətləri
+- **Long-polling**: HTTP webhook yox, birbaşa polling
+- **Inline Keyboard**: Təsdiqləmə düymələri
+- **Admin Chat ID**: Konfiqurasiyada təyin edilir
+- **Error Handling**: Reconnection və retry mexanizmləri
+
+## 🗂️ YENİ Komponentlər Təfsilatı
+
+### 1. 📄 Models/Lead.cs ⭐
+**Məqsəd**: Potensial satış imkanları üçün data model
 
 ```csharp
-public class QueueItem
+public class Lead
 {
-    public string Id { get; set; }
-    public string Type { get; set; }        // "insurance" / "whatsapp"
+    public int Id { get; set; }
+    public int UserId { get; set; }
     public string CarNumber { get; set; }
-    public string PhoneNumber { get; set; }
-    public string Message { get; set; }
-    public bool IsProcessed { get; set; }
+    public string LeadType { get; set; }    // "NoInsuranceImmediate", "RenewalWindow", etc.
+    public string? Notes { get; set; }
     public DateTime CreatedAt { get; set; }
-    public DateTime? ProcessedAt { get; set; }
+    public bool IsConverted { get; set; }
 }
 ```
 
+### 2. 📄 Models/Notification.cs ⭐
+**Məqsəd**: Admin təsdiqi tələb edən bildirişlər
+
+```csharp
+public class Notification
+{
+    public int Id { get; set; }
+    public int LeadId { get; set; }
+    public string Channel { get; set; } = "wa";  // whatsapp
+    public string Message { get; set; }
+    public string Status { get; set; }          // pending, approved, sent, error
+    public DateTime CreatedAt { get; set; }
+    public DateTime? ApprovedAt { get; set; }
+    public DateTime? SentAt { get; set; }
+}
+```
+
+### 3. 🔧 Services/TelegramBotService.cs ⭐
+**Məqsəd**: Admin approval automation
+
+**Funksiyalar**:
+- `SendApprovalRequestAsync(Notification)` - Admin-ə təsdiqləmə istəyi
+- `HandleCallbackAsync(string callbackData)` - Düymə basılması işlənməsi
+
+**Konfiqurasiya**:
+```json
+{
+  "Telegram": {
+    "BotToken": "8399345423:AAF9cf9mvp4il39G4N8_vQu6Xu-5cxkgKDM",
+    "AdminId": 1762884854
+  }
+}
+```
+
+### 4. 🔧 Services/LeadService.cs ⭐
+**Məqsəd**: Lead yaratma və idarəetmə
+
+**Funksiyalar**:
+- `CreateLeadWithNotificationAsync()` - Lead + Notification yaradır
+- `ConvertLeadAsync()` - Lead-i "converted" vəziyyətinə keçirir
+
+### 5. ⚙️ Jobs/TelegramBotHostedService.cs ⭐
+**Məqsəd**: Telegram bot background service
+
 **Xüsusiyyətlər**:
-- ✅ Queue tipini təyin edir (insurance/whatsapp)
-- ✅ İşləmə statusunu izləyir
-- ✅ Yaradılma və işlənmə tarixlərini saxlayır
+- **IHostedService** inteqrasiyası
+- **Long-polling** Telegram API updates
+- **Callback handling** approval düymələri üçün
+- **Error recovery** və reconnection
 
-### 2. 🔧 Services/QueueRepository.cs
-**Məqsəd**: Queue məlumatlarının idarəetməsi
+## 🔄 YENİ İş Axını (Enhanced Workflow)
 
-**Funksiyalar**:
-- `SeedTestData()` - Test məlumatları yaradır
-- `GetUnprocessedInsuranceItems()` - İşlənməmiş sığorta queue-ları
-- `GetUnprocessedWhatsAppItems()` - İşlənməmiş WhatsApp queue-ları
-- `MarkAsProcessed()` - Queue-nu işlənmiş kimi işarələyir
-- `ShowQueueStatus()` - Queue statusunu göstərir
-
-**Xüsusiyyətlər**:
-- ✅ Static metodlar (Hangfire uyğunluğu üçün)
-- ✅ In-memory data storage simulasiyası
-- ✅ Thread-safe əməliyyatlar
-
-### 3. 🚗 Services/InsuranceService.cs
-**Məqsəd**: Sığorta məlumatlarını yoxlama
-
-**Funksiyalar**:
-- `CheckInsuranceAsync(string carNumber)` - Avtomobil sığortasını yoxlayır
-
-**Texniki detallar**:
-- ✅ Async/await pattern
-- ✅ Selenium WebDriver inteqrasiyası (gələcək)
-- ✅ Məlumat formatlaması və queue-ya WhatsApp mesajı əlavə etməsi
-
-### 4. 📱 Services/WhatsAppService.cs
-**Məqsəd**: WhatsApp mesaj göndərmə
-
-**Funksiyalar**:
-- `SendMessageAsync(string phoneNumber, string message)` - WhatsApp mesajı göndərir
-
-**Texniki detallar**:
-- ✅ Node.js process çağırışı
-- ✅ debug-whatsapp.js tool inteqrasiyası
-- ✅ Error handling və logging
-
-### 5. ⚙️ Jobs/InsuranceJob.cs
-**Məqsəd**: Sığorta yoxlama background job-u
-
-**Scheduler**: Hər dəqiqə işləyir (`Cron.Minutely`)
-
-**İş axını**:
-1. Queue-dan işlənməmiş sığorta elementlərini alır
-2. Hər biri üçün `InsuranceService.CheckInsuranceAsync()` çağırır
-3. Nəticəni WhatsApp queue-ya əlavə edir
-4. Element statusunu işlənmiş kimi dəyişir
-
-### 6. 📲 Jobs/WhatsAppJob.cs
-**Məqsəd**: WhatsApp mesaj göndərmə background job-u
-
-**Scheduler**: Hər 2 dəqiqə işləyir (`*/2 * * * *`)
-
-**İş axını**:
-1. Queue-dan işlənməmiş WhatsApp elementlərini alır
-2. Hər biri üçün `WhatsAppService.SendMessageAsync()` çağırır
-3. Element statusunu işlənmiş kimi dəyişir
-
-### 7. 🎯 Program.cs
-**Məqsəd**: Ana proqram və Hangfire host
-
-**Komponentlər**:
-- **Hangfire Configuration**: InMemory storage və server options
-- **Recurring Jobs Setup**: Insurance və WhatsApp job-larının qurulması
-- **Interactive Console**: ENTER ilə queue status, ESCAPE ilə çıxış
-
-## 🔄 İş Axını (Workflow)
-
-### 1. Sistem Başlanğıcı
+### 1. Lead Yaranma Axını ⭐
 ```
-Program.Main() başlayır
+InsuranceService məlumat yoxlayır
     ↓
-QueueRepository.SeedTestData() - Test məlumatları yüklənir
+Əgər məlumat yoxdursa:
     ↓
-Hangfire konfiqurasiyası (InMemory storage)
+LeadService.CreateLeadWithNotificationAsync()
     ↓
-BackgroundJobServer başlayır (2 worker thread)
+Lead (NoInsuranceImmediate) + Notification (pending) yaradılır
     ↓
-Recurring job-lar qurulur:
-    • InsuranceJobHandler - hər dəqiqə
-    • WhatsAppJob - hər 2 dəqiqə
-    ↓
-Manual test job-ları əlavə edilir
-    ↓
-Interactive console loop başlayır
+TelegramBotService admin-ə approval istəyi göndərir
 ```
 
-### 2. Sığorta Job Dövriyyəsi
+### 2. Approval Axını ⭐
 ```
-InsuranceJob.ProcessInsuranceQueue() (hər dəqiqə)
+Admin Telegram-da "✅ APPROVE" basır
     ↓
-QueueRepository.GetUnprocessedInsuranceItems()
+TelegramBotHostedService callback alır
     ↓
-Hər element üçün:
+NotificationService.ApproveAsync(notificationId)
     ↓
-InsuranceService.CheckInsuranceAsync(carNumber)
+Notification status: approved, WhatsApp Queue-ya əlavə edilir
     ↓
-Selenium WebDriver ilə sığorta saytına daxil olur
-    ↓
-Məlumatları əldə edir və formatlaşdırır
-    ↓
-WhatsApp queue-ya mesaj əlavə edir
-    ↓
-QueueRepository.MarkAsProcessed(elementId)
+WhatsApp Job mesajı göndərir, status: sent
 ```
 
-### 3. WhatsApp Job Dövriyyəsi
+### 3. Renewal Window Tracking ⭐
 ```
-WhatsAppJob.ProcessWhatsAppQueue() (hər 2 dəqiqə)
+RenewalTrackingService renewal tarixi tapır
     ↓
-QueueRepository.GetUnprocessedWhatsAppItems()
+User.RenewalWindowStart & RenewalWindowEnd yenilənir
     ↓
-Hər element üçün:
+Lead yaradılır (RenewalWindow type)
     ↓
-WhatsAppService.SendMessageAsync(phone, message)
-    ↓
-Node.js process başladır: debug-whatsapp.js
-    ↓
-WhatsApp Web.js ilə mesaj göndərilir
-    ↓
-QueueRepository.MarkAsProcessed(elementId)
+Notification approval prosesi başlayır
 ```
 
-## 🎮 İstifadə Təlimatları
+## 📊 YENİ Verilənlər Bazası Cədvəlləri
 
-### Sistemin İşə Salınması
+### Leads Cədvəli ⭐
+```sql
+CREATE TABLE Leads (
+    Id INT IDENTITY(1,1) PRIMARY KEY,
+    UserId INT NOT NULL REFERENCES Users(Id),
+    CarNumber NVARCHAR(20) NOT NULL,
+    LeadType NVARCHAR(50) NOT NULL,
+    Notes NVARCHAR(MAX) NULL,
+    CreatedAt DATETIME NOT NULL DEFAULT GETDATE(),
+    IsConverted BIT NOT NULL DEFAULT 0
+);
+```
+
+### Notifications Cədvəli ⭐
+```sql
+CREATE TABLE Notifications (
+    Id INT IDENTITY(1,1) PRIMARY KEY,
+    LeadId INT NOT NULL REFERENCES Leads(Id) ON DELETE CASCADE,
+    Channel NVARCHAR(10) NOT NULL DEFAULT 'wa',
+    Message NVARCHAR(2000) NOT NULL,
+    Status NVARCHAR(20) NOT NULL DEFAULT 'pending',
+    CreatedAt DATETIME NOT NULL DEFAULT GETDATE(),
+    ApprovedAt DATETIME NULL,
+    SentAt DATETIME NULL
+);
+```
+
+### Users Cədvəli Yeniləmələri ⭐
+```sql
+-- Əlavə edilən sahələr
+ALTER TABLE Users ADD 
+    RenewalWindowStart DATETIME NULL,
+    RenewalWindowEnd DATETIME NULL;
+```
+
+## 🎮 YENİ İstifadə Təlimatları
+
+### Telegram Bot Qurulumu ⭐
 ```bash
-# Layihəni build et
-dotnet build
+# Bot token və admin ID konfiqurasiyası
+# appsettings.json-da təyin edin
 
-# Sistemi işə sal
+# Sistem başladıldıqda bot avtomatik aktivləşir
 dotnet run
 ```
 
-### İnteraktiv Komandalar
-- **ENTER** - Queue statusunu göstər
-- **ESCAPE** - Sistemdən çıx
-- **CTRL+C** - Sistemi dayandır
-
-### Queue Status Nümunəsi
+### Lead Yaratma Test ⭐
+```sql
+-- Manual lead yaratma
+INSERT INTO Users (CarNumber) VALUES ('TEST123');
+DECLARE @UserId INT = SCOPE_IDENTITY();
+INSERT INTO Leads (UserId, CarNumber, LeadType) VALUES (@UserId, 'TEST123', 'NoInsuranceImmediate');
 ```
-📊 QUEUE STATUS:
-==================================================
-📋 Ümumi: 6
-✅ Proses olunmuş: 4
-⏳ Gözləyən: 2
+
+### Notification Status Yoxlama ⭐
+```sql
+-- Pending notifications
+SELECT l.CarNumber, n.Message, n.Status, n.CreatedAt 
+FROM Notifications n 
+JOIN Leads l ON n.LeadId = l.Id 
+WHERE n.Status = 'pending' 
+ORDER BY n.CreatedAt DESC;
 ```
 
 ## 🚀 Production Hazırlığı
 
-### Qarşıdan Gələn Dəyişikliklər
+### YENİ Tələblər ⭐
+1. **Telegram Bot API Konfiqurasiyası**:
+   - Bot token Environment variables-da saxlanmalı
+   - Admin chat ID-si konfiqurasiya edilməli
 
-1. **Database Inteqrasiyası**:
-   ```csharp
-   // InMemory-dən SQL Server-ə keçid
-   .UseSqlServerStorage(connectionString)
-   ```
+2. **Notification Monitoring**:
+   - Pending notifications alertləri
+   - Failed approval retry məkanimzəsi
 
-2. **Real Sığorta Sayt Inteqrasiyası**:
-   - Selenium WebDriver ilə real saytlara daxil olma
-   - CAPTCHA həlli mexanizmləri
-   - Error handling və retry logic
+3. **Lead Analytics**:
+   - Conversion rate tracking
+   - Lead source analysis
+   - ROI metrics
 
-3. **Monitoring və Logging**:
-   - Hangfire Dashboard əlavə edilməsi
-   - Application Insights inteqrasiyası
-   - Custom metrics və alertlər
+## ⚡ Performance Xüsusiyyətləri (Yenilənmiş)
 
-4. **Scalability**:
-   - Multiple worker instances
-   - Redis-based Hangfire storage
-   - Load balancing
+- **Concurrent Processing**: Insurance, WhatsApp, və Telegram job-ları paralel
+- **Lead Pipeline**: Asynchronous lead processing və notification queue
+- **Telegram Long-polling**: Real-time approval without webhooks ⭐
+- **Smart Binary Search**: Enhanced MonthSearch company-based strategy ⭐
+- **Queue Separation**: insurance, whatsapp, və notification queue-ları ayrıca ⭐
 
-## 🛠️ Development Setup
+## 🔒 Təhlükəsizlik (Yenilənmiş)
 
-### Tələblər
-- .NET 9.0 SDK
-- Node.js (WhatsApp Web.js üçün)
-- Chrome/Chromium (Selenium üçün)
+- **Telegram Bot Token Security**: Environment variables istifadəsi ⭐
+- **Admin Authorization**: Yalnız konfiqurasiya edilmiş admin ID ⭐
+- **Callback Data Validation**: Malicious callback prevention ⭐
+- **Process Isolation**: Node.js və Telegram bot ayrıca thread-lər
+- **Error Boundaries**: Hər komponent öz error handling-ə malik
 
-### WhatsApp Bot Setup
-```bash
-cd whatsapp-bot
-npm install
-```
-
-### Test Məlumatları
-Sistem başlayanda avtomatik olaraq test məlumatları yüklənir:
-- 3 sığorta yoxlama queue-u
-- 3 WhatsApp mesaj queue-u
-
-## ⚡ Performance Xüsusiyyətləri
-
-- **Concurrent Processing**: 2 parallel worker thread
-- **Queue Separation**: insurance və whatsapp queue-ları ayrıca
-- **Memory Efficient**: InMemory storage minimal yaddaş istifadəsi
-- **Error Handling**: Job failure automatik retry mexanizmi
-- **Scheduling**: Cron-based recurring job sistemi
-
-## 🔒 Təhlükəsizlik
-
-- **Process Isolation**: Node.js process ayrıca thread-də işləyir
-- **Error Boundaries**: Hər job öz error handling-ə malikdir
-- **Data Validation**: Queue elementləri validate edilir
-- **Safe Shutdown**: Graceful application termination
-
-Bu arxitektura layihənin bütün komponentlərini əhatə edir və gələcək inkişaf üçün möhkəm baza təşkil edir. 🎯
+Bu arxitektura layihənin bütün komponentlərini, o cümlədən yeni lead idarəetməsi və Telegram approval sistemini əhatə edir. 🎯⭐
 
 # SigortaYoxla - Arxitektura
 
@@ -333,14 +357,23 @@ Bu arxitektura layihənin bütün komponentlərini əhatə edir və gələcək i
 - Entity Framework Core 
 - Hangfire
 - Azure SQL Database
+- **YENİ**: Telegram.Bot ⭐
+- **YENİ**: Lead Management ⭐
 
 ## Komponentlər
 - Console App
 - Background Jobs (Hangfire)
 - Database (Azure SQL)
 - Dashboard (http://localhost:5000/hangfire)
+- **YENİ**: Telegram Bot Approval ⭐
+- **YENİ**: Lead & Notification Pipeline ⭐
+
+## 🆕 Lead & Notification Pipeline (qısa icmal)
+Sistemdə *lead* yarandıqda adminə Telegram vasitəsilə təsdiqləmə (approval) gedişi və təsdiqlənmiş bildirişlərin WhatsApp queue-ya ötürülməsi mexanizmi əlavə edilib. Ətraflı bax: `lead-notifications.md`.
 
 ## Queue Sistemi
 - Persistent queue (SQL)
 - Insurance job - hər dəqiqə
 - WhatsApp job - hər 2 dəqiqə
+- **YENİ**: Telegram approval system ⭐
+- **YENİ**: Lead generation workflow ⭐
