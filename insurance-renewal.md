@@ -320,3 +320,14 @@ Bu sistem 4 əsas mərhələdə işləyir:
 4. **FinalCheck**: Təxmini tarix hesablanır və bildiriş prosesi başladılır
 
 Hər mərhələdə ISB.az-ın gündəlik limitlərinə hörmət edilir və sistem avtomatik olaraq növbəti günə təxirə salır.
+
+### 🔸 TEST CASE 3: Dəyişiklik olmayan
+**Məqsəd:** `YearSearch` fazasının çox il geri gedə bilməsini test etmək  
+**Gözlənilən nəticə:** Sistemin `YearSearch` fazasında qalması  
+**Test NV-lər:**
+- `99JP083` - adətən ATEŞGAH SIGORTA verir (dəyişiklik yox)
+- `77JG472` - eyni şirkət, uzun müddət
+- `90AM566` - ✅ **TESTED**: 2025/2024/2023 = ATEŞGAH/İSUZU, 2022 = pending limit
+- `90HB987` - ✅ **TESTED**: 2025/2024/2023 = ATEŞGAH, 2022 = NULL (pending limit)
+- `77JG327` - ✅ **TESTED**: 2025/2024/2023 = ATEŞGAH/İSUZU, 2022 = NULL (pending limit)
+- `10RL033` - adətən məlumat vermədiyi üçün dəyişiklik yoxdur

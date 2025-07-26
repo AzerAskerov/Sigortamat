@@ -159,7 +159,44 @@ namespace Sigortamat.Services
 
         private async Task ProcessInitialPhaseAsync(InsuranceRenewalTracking tracking, InsuranceJob completedJob)
         {
-            // Initial fazadan YearSearch fazasına keç
+            Console.WriteLine($"=====================================");
+            Console.WriteLine($"🔍 DEBUG: ProcessInitialPhaseAsync BAŞLADI");
+            Console.WriteLine($"🔍 DEBUG: Job ID: {completedJob.Id}, CheckDate: {completedJob.CheckDate:yyyy-MM-dd}");
+            Console.WriteLine($"🔍 DEBUG: Job məlumatları - Company: '{completedJob.Company}', Brand: '{completedJob.VehicleBrand}', Model: '{completedJob.VehicleModel}'");
+            Console.WriteLine($"🔍 DEBUG: ResultText: '{completedJob.ResultText}'");
+            Console.WriteLine($"=====================================");
+            
+            // İlk job-un nəticəsini yoxla
+            bool hasInsuranceData = !string.IsNullOrWhiteSpace(completedJob.Company) || 
+                                   !string.IsNullOrWhiteSpace(completedJob.VehicleBrand) || 
+                                   !string.IsNullOrWhiteSpace(completedJob.VehicleModel);
+            
+            Console.WriteLine($"🔍 DEBUG: hasInsuranceData: {hasInsuranceData}");
+            
+            if (!hasInsuranceData)
+            {
+                // Məlumat tapılmadı - avtomobil üçün sığorta yoxdur
+                Console.WriteLine($"❌ ❌ ❌ İLK YOXLAMADA MƏLUMAT TAPILMADI - TRACKING BİTİR ❌ ❌ ❌");
+                // Lead yaradın: NoInsuranceImmediate
+                var lead = new Lead
+                {
+                    UserId = tracking.UserId,
+                    CarNumber = tracking.User.CarNumber,
+                    LeadType = "NoInsuranceImmediate",
+                    Notes = "İlk sorğuda sığorta məlumatı tapılmadı"
+                };
+                _context.Leads.Add(lead);
+
+                tracking.CurrentPhase = "Completed";
+                tracking.NextCheckDate = null; // Daha yoxlama etməyəcək
+                
+                _logger.LogInformation("No insurance found in initial check, created lead and marked completed for tracking: {TrackingId}", tracking.Id);
+                Console.WriteLine($"✅ ✅ ✅ LEAD YARADILDI VƏ TRACKING COMPLETED - NO INSURANCE FOUND ✅ ✅ ✅");
+                return;
+            }
+            
+            // Sığorta məlumatları tapıldı - YearSearch fazasına keç
+            Console.WriteLine($"✅ ✅ ✅ İLK YOXLAMADA SİGORTA TAPILDI - YEARSEARCH FAZASINA KEÇİR ✅ ✅ ✅");
             tracking.CurrentPhase = "YearSearch";
             tracking.NextCheckDate = completedJob.CheckDate?.AddYears(-1) ?? DateTime.Now.AddYears(-1);
 
@@ -167,28 +204,41 @@ namespace Sigortamat.Services
             await CreateInsuranceJobAsync(tracking, tracking.User.CarNumber, tracking.NextCheckDate.Value);
 
             _logger.LogInformation("Moved to YearSearch phase for tracking: {TrackingId}", tracking.Id);
+            Console.WriteLine($"📅 ✅ YEARSEARCH FAZASI BAŞLADI - YENİ JOB YARADILDI ✅ 📅");
         }
 
         private async Task ProcessYearSearchPhaseAsync(InsuranceRenewalTracking tracking, InsuranceJob completedJob)
         {
-            Console.WriteLine($"🔍 DEBUG: ProcessYearSearchPhaseAsync - Job ID: {completedJob.Id}, CheckDate: {completedJob.CheckDate}");
+            Console.WriteLine($"=====================================");
+            Console.WriteLine($"🔍 DEBUG: ProcessYearSearchPhaseAsync BAŞLADI");
+            Console.WriteLine($"🔍 DEBUG: Job ID: {completedJob.Id}, CheckDate: {completedJob.CheckDate:yyyy-MM-dd}");
+            Console.WriteLine($"🔍 DEBUG: Tracking məlumatları - ID: {tracking.Id}, Phase: {tracking.CurrentPhase}, ChecksPerformed: {tracking.ChecksPerformed}");
+            Console.WriteLine($"🔍 DEBUG: Job Company: '{completedJob.Company}', Brand: '{completedJob.VehicleBrand}', Model: '{completedJob.VehicleModel}'");
+            Console.WriteLine($"=====================================");
             
             // Əvvəlki job-la müqayisə et
+            Console.WriteLine($"🔍 DEBUG: GetPreviousJobAsync çağırılır...");
             var previousJob = await GetPreviousJobAsync(tracking.Id, completedJob.CheckDate);
             
-            Console.WriteLine($"🔍 DEBUG: GetPreviousJobAsync nəticəsi - Previous Job: {(previousJob != null ? $"ID {previousJob.Id}, Date: {previousJob.CheckDate}" : "NULL")}");
+            Console.WriteLine($"🔍 DEBUG: GetPreviousJobAsync nəticəsi - Previous Job: {(previousJob != null ? $"ID {previousJob.Id}, Date: {previousJob.CheckDate:yyyy-MM-dd}" : "NULL")}");
             
             if (previousJob != null)
             {
-                Console.WriteLine($"🔍 DEBUG: Müqayisə - Current: {completedJob.Company}/{completedJob.VehicleBrand}/{completedJob.VehicleModel}");
-                Console.WriteLine($"🔍 DEBUG: Müqayisə - Previous: {previousJob.Company}/{previousJob.VehicleBrand}/{previousJob.VehicleModel}");
+                Console.WriteLine($"=====================================");
+                Console.WriteLine($"🔍 DEBUG: MÜQAYİSƏ BAŞLAYIR:");
+                Console.WriteLine($"  Current Job  - Company: '{completedJob.Company}', Brand: '{completedJob.VehicleBrand}', Model: '{completedJob.VehicleModel}'");
+                Console.WriteLine($"  Previous Job - Company: '{previousJob.Company}', Brand: '{previousJob.VehicleBrand}', Model: '{previousJob.VehicleModel}'");
+                Console.WriteLine($"=====================================");
                 
                 bool hasChanges = DetectChanges(previousJob, completedJob);
                 Console.WriteLine($"🔍 DEBUG: DetectChanges nəticəsi: {hasChanges}");
 
                 if (hasChanges)
                 {
-                    Console.WriteLine($"✅ DEBUG: Dəyişiklik tapıldı! MonthSearch fazasına keçirik");
+                    Console.WriteLine($"=====================================");
+                    Console.WriteLine($"✅ ✅ ✅ DƏYİŞİKLİK TAPILDI! ✅ ✅ ✅");
+                    Console.WriteLine($"🚀 PHASE CHANGE: YearSearch → MonthSearch");
+                    Console.WriteLine($"=====================================");
                     
                     // Dəyişiklik tapıldı - MonthSearch fazasına keç
                     tracking.CurrentPhase = "MonthSearch";
@@ -197,64 +247,156 @@ namespace Sigortamat.Services
                     var midDate = CalculateMidDate(completedJob.CheckDate.Value, previousJob.CheckDate.Value);
                     tracking.NextCheckDate = midDate;
                     
-                    Console.WriteLine($"🔍 DEBUG: MonthSearch üçün mid date: {midDate}");
+                    Console.WriteLine($"🔍 DEBUG: MonthSearch üçün mid date: {midDate:yyyy-MM-dd}");
+                    Console.WriteLine($"🔍 DEBUG: Date range: {completedJob.CheckDate:yyyy-MM-dd} <-> {previousJob.CheckDate:yyyy-MM-dd}");
 
                     await CreateInsuranceJobAsync(tracking, tracking.User.CarNumber, midDate);
 
                     _logger.LogInformation("Found changes, moved to MonthSearch phase for tracking: {TrackingId}", tracking.Id);
+                    Console.WriteLine($"✅ ✅ ✅ MonthSearch fazasına keçid TAMAMLANDI ✅ ✅ ✅");
+                    Console.WriteLine($"=====================================");
                     return;
                 }
                 else
                 {
-                    Console.WriteLine($"⚠️ DEBUG: Dəyişiklik tapılmadı, YearSearch-a davam");
+                    Console.WriteLine($"⚠️ ⚠️ ⚠️ Dəyişiklik tapılmadı, YearSearch fazasında davam edirik ⚠️ ⚠️ ⚠️");
                 }
             }
             else
             {
-                Console.WriteLine($"⚠️ DEBUG: Previous job tapılmadı, YearSearch-a davam");
+                Console.WriteLine($"⚠️ ⚠️ ⚠️ Previous job tapılmadı, YearSearch fazasında davam edirik ⚠️ ⚠️ ⚠️");
             }
 
             // Dəyişiklik yoxdur - daha əvvələ get
-            tracking.NextCheckDate = completedJob.CheckDate?.AddYears(-1) ?? DateTime.Now.AddYears(-2);
-            Console.WriteLine($"🔍 DEBUG: Növbəti yoxlama tarixi: {tracking.NextCheckDate}");
+            var nextCheckDate = completedJob.CheckDate?.AddYears(-1) ?? DateTime.Now.AddYears(-2);
+            tracking.NextCheckDate = nextCheckDate;
             
-            await CreateInsuranceJobAsync(tracking, tracking.User.CarNumber, tracking.NextCheckDate.Value);
+            Console.WriteLine($"=====================================");
+            Console.WriteLine($"🔍 DEBUG: Növbəti yoxlama tarixi: {nextCheckDate:yyyy-MM-dd}");
+            Console.WriteLine($"📅 YEAR SEARCH DAVAM EDİR - yeni job yaradılır");
+            Console.WriteLine($"=====================================");
+            
+            await CreateInsuranceJobAsync(tracking, tracking.User.CarNumber, nextCheckDate);
 
             _logger.LogInformation("No changes found, continuing YearSearch for tracking: {TrackingId}", tracking.Id);
+            Console.WriteLine($"⚠️ DEBUG: YearSearch fazasında qalma TAMAMLANDI");
         }
 
         private async Task ProcessMonthSearchPhaseAsync(InsuranceRenewalTracking tracking, InsuranceJob completedJob)
         {
-            // Bütün əlaqəli job-ları əldə et
+            Console.WriteLine($"=====================================");
+            Console.WriteLine($"🔍 DEBUG: ProcessMonthSearchPhaseAsync BAŞLADI");
+            Console.WriteLine($"🔍 DEBUG: Job ID: {completedJob.Id}, CheckDate: {completedJob.CheckDate:yyyy-MM-dd}");
+            Console.WriteLine($"🔍 DEBUG: Job Company: '{completedJob.Company}', Brand: '{completedJob.VehicleBrand}', Model: '{completedJob.VehicleModel}'");
+            Console.WriteLine($"=====================================");
+            
+            // Bütün əlaqəli job-ları əldə et və sırala
             var allJobs = await GetAllRelatedJobsAsync(tracking.Id);
-            var laterJobs = allJobs.Where(j => j.CheckDate > completedJob.CheckDate).OrderBy(j => j.CheckDate).ToList();
-
-            if (!laterJobs.Any())
+            Console.WriteLine($"🔍 DEBUG: Tracking {tracking.Id} üçün ümumi job sayı: {allJobs.Count}");
+            
+            foreach (var job in allJobs.OrderBy(j => j.CheckDate))
             {
-                _logger.LogWarning("No later jobs found for MonthSearch phase, tracking: {TrackingId}", tracking.Id);
+                bool hasInsurance = !string.IsNullOrWhiteSpace(job.Company);
+                Console.WriteLine($"  - Job {job.Id}: {job.CheckDate:yyyy-MM-dd} → Company: '{job.Company}' → Sığorta: {(hasInsurance ? "VAR" : "YOXDUR")}");
+            }
+            
+            // Current job-un sığorta vəziyyətini təyin et
+            bool currentHasInsurance = !string.IsNullOrWhiteSpace(completedJob.Company);
+            Console.WriteLine($"🔍 DEBUG: Current job sığorta vəziyyəti: {(currentHasInsurance ? "VAR" : "YOXDUR")}");
+            
+            // MonthSearch üçün intelligent binary search - VAR/YOX və ya COMPANY-based
+            InsuranceJob? oppositeJob = null;
+            
+            // Strategy 1: Klassik VAR/YOX axtarışı
+            if (currentHasInsurance)
+            {
+                oppositeJob = allJobs
+                    .Where(j => j.CheckDate < completedJob.CheckDate && string.IsNullOrWhiteSpace(j.Company))
+                    .OrderByDescending(j => j.CheckDate)
+                    .FirstOrDefault();
+                Console.WriteLine($"🔍 DEBUG: Strategy 1 - Sığorta VAR, əvvəldə sığorta OLMAYAN job axtarıram...");
+            }
+            else
+            {
+                oppositeJob = allJobs
+                    .Where(j => j.CheckDate > completedJob.CheckDate && !string.IsNullOrWhiteSpace(j.Company))
+                    .OrderBy(j => j.CheckDate)
+                    .FirstOrDefault();
+                Console.WriteLine($"🔍 DEBUG: Strategy 1 - Sığorta YOXDUR, sonrada sığorta OLAN job axtarıram...");
+            }
+            
+            // Strategy 2: Əgər VAR/YOX tapılmadısa, COMPANY-based axtarış
+            if (oppositeJob == null && currentHasInsurance)
+            {
+                Console.WriteLine($"🔄 DEBUG: Strategy 1 uğursuz! Strategy 2 - COMPANY-based axtarış başlayır...");
+                Console.WriteLine($"🔍 DEBUG: Current company: '{completedJob.Company}'");
+                
+                // Fərqli şirkət olan job axtarım - current-dən əvvəl və sonra
+                var differentCompanyJobs = allJobs
+                    .Where(j => !string.IsNullOrWhiteSpace(j.Company) && 
+                               !string.IsNullOrWhiteSpace(completedJob.Company) &&
+                               !j.Company.Equals(completedJob.Company, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+                    
+                Console.WriteLine($"🔍 DEBUG: Fərqli şirkət olan job sayı: {differentCompanyJobs.Count}");
+                foreach (var diffJob in differentCompanyJobs)
+                {
+                    Console.WriteLine($"  - Job {diffJob.Id}: {diffJob.CheckDate:yyyy-MM-dd} → '{diffJob.Company}'");
+                }
+                
+                if (differentCompanyJobs.Any())
+                {
+                    // Current-dən ən yaxın olan fərqli şirkəti tap
+                    oppositeJob = differentCompanyJobs
+                        .OrderBy(j => Math.Abs((j.CheckDate!.Value - completedJob.CheckDate!.Value).TotalDays))
+                        .FirstOrDefault();
+                        
+                    Console.WriteLine($"✅ DEBUG: Strategy 2 - Fərqli şirkət tapıldı: Job {oppositeJob.Id} → '{oppositeJob.Company}'");
+                }
+            }
+            
+            if (oppositeJob == null)
+            {
+                Console.WriteLine($"❌ ❌ ❌ HƏR İKİ STRATEGY UĞURSUZ - OPPOSITE JOB TAPILMADI ❌ ❌ ❌");
+                _logger.LogWarning("No opposite job found for MonthSearch binary search (both VAR/YOX and COMPANY strategies failed), tracking: {TrackingId}", tracking.Id);
                 return;
             }
+            
+            Console.WriteLine($"🔍 DEBUG: Opposite job tapıldı - Job {oppositeJob.Id}: {oppositeJob.CheckDate:yyyy-MM-dd} → Company: '{oppositeJob.Company}'");
+            
+            // Interval hesabla
+            var earlierDate = completedJob.CheckDate < oppositeJob.CheckDate ? completedJob.CheckDate.Value : oppositeJob.CheckDate.Value;
+            var laterDate = completedJob.CheckDate > oppositeJob.CheckDate ? completedJob.CheckDate.Value : oppositeJob.CheckDate.Value;
+            
+            Console.WriteLine($"🔍 DEBUG: Binary search interval: {earlierDate:yyyy-MM-dd} ↔ {laterDate:yyyy-MM-dd}");
+            
+            var dateDiff = laterDate - earlierDate;
+            Console.WriteLine($"🔍 DEBUG: Interval uzunluğu: {dateDiff.TotalDays:F0} gün");
 
-            var nearestLater = laterJobs.First();
-            var dateDiff = nearestLater.CheckDate.Value - completedJob.CheckDate.Value;
-
-            if (dateDiff.TotalDays <= 31)
+            // 14 gündən az interval kifayət edir (≈2 həftə)
+            if (dateDiff.TotalDays <= 14)
             {
-                // 1 aydan az fərq - FinalCheck fazasına keç
+                // 2 həftədən az fərq - FinalCheck fazasına keç
+                Console.WriteLine($"✅ ✅ ✅ INTERVAL 14 GÜNDƏN AZDIR - FINALCHECK FAZASINA KEÇİR ✅ ✅ ✅");
                 tracking.CurrentPhase = "FinalCheck";
-                await UpdateUserWithEstimatedDateAsync(tracking.UserId, completedJob, nearestLater);
+                await UpdateUserWithEstimatedDateAsync(tracking.UserId, completedJob, oppositeJob);
 
-                _logger.LogInformation("Interval narrowed to 1 month, moved to FinalCheck phase for tracking: {TrackingId}", 
-                    tracking.Id);
+                _logger.LogInformation("Interval narrowed to 1 month, moved to FinalCheck phase for tracking: {TrackingId}", tracking.Id);
+                Console.WriteLine($"📅 ✅ FINALCHECK FAZASI BAŞLADI ✅ 📅");
                 return;
             }
 
-            // İkili axtarışa davam et
-            var nextDate = CalculateMidDate(completedJob.CheckDate.Value, nearestLater.CheckDate.Value);
+            // İkili axtarışa davam et - interval ortasını hesabla
+            var nextDate = CalculateMidDate(earlierDate, laterDate);
+            Console.WriteLine($"🔍 DEBUG: Binary search mid-point hesablandı: {nextDate:yyyy-MM-dd}");
+            Console.WriteLine($"🔍 DEBUG: Next job tarixi: {nextDate:yyyy-MM-dd}");
+            
             tracking.NextCheckDate = nextDate;
             await CreateInsuranceJobAsync(tracking, tracking.User.CarNumber, nextDate);
 
-            _logger.LogInformation("Continuing binary search in MonthSearch phase for tracking: {TrackingId}", tracking.Id);
+            _logger.LogInformation("Continuing binary search in MonthSearch phase for tracking: {TrackingId}, next date: {NextDate:yyyy-MM-dd}", tracking.Id, nextDate);
+            Console.WriteLine($"📅 ✅ BINARY SEARCH DAVAM EDİR - YENİ JOB YARADILDI ✅ 📅");
+            Console.WriteLine($"=====================================");
         }
 
         private async Task ProcessFinalCheckPhaseAsync(InsuranceRenewalTracking tracking, InsuranceJob completedJob)
@@ -315,14 +457,15 @@ namespace Sigortamat.Services
                 Console.WriteLine($"  - Job {job.Id}: Status={job.Status}, CheckDate={job.CheckDate}, Company={job.Company}");
             }
             
+            // Proses ardıcıllığında əvvəlki job-u tap (CheckDate > currentCheckDate olan ən yaxın completed job)
             var previousJob = await _context.InsuranceJobs
                 .Where(j => j.InsuranceRenewalTrackingId == trackingId && 
-                           j.CheckDate < currentCheckDate &&
+                           j.CheckDate > currentCheckDate &&
                            j.Status == "completed")
-                .OrderByDescending(j => j.CheckDate)
+                .OrderBy(j => j.CheckDate) // Ascending - ən yaxın sonrakı tarixi tap
                 .FirstOrDefaultAsync();
                 
-            Console.WriteLine($"🔍 DEBUG: GetPreviousJobAsync filter result - Previous Job: {(previousJob != null ? $"ID {previousJob.Id}, Status: {previousJob.Status}, Date: {previousJob.CheckDate}" : "NULL")}");
+            Console.WriteLine($"🔍 DEBUG: GetPreviousJobAsync düzəldilmiş filter result - Previous Job: {(previousJob != null ? $"ID {previousJob.Id}, Status: {previousJob.Status}, Date: {previousJob.CheckDate}" : "NULL")}");
             
             return previousJob;
         }
@@ -337,18 +480,36 @@ namespace Sigortamat.Services
 
         private bool DetectChanges(InsuranceJob job1, InsuranceJob job2)
         {
-            Console.WriteLine($"🔍 DEBUG: DetectChanges - Job1: Company='{job1.Company}', Brand='{job1.VehicleBrand}', Model='{job1.VehicleModel}'");
-            Console.WriteLine($"🔍 DEBUG: DetectChanges - Job2: Company='{job2.Company}', Brand='{job2.VehicleBrand}', Model='{job2.VehicleModel}'");
+            Console.WriteLine($"🔍🔍🔍 DEBUG: DetectChanges BAŞLAYIR 🔍🔍🔍");
+            Console.WriteLine($"  Job1 (Previous): Company='{job1.Company}', Brand='{job1.VehicleBrand}', Model='{job1.VehicleModel}'");
+            Console.WriteLine($"  Job2 (Current):  Company='{job2.Company}', Brand='{job2.VehicleBrand}', Model='{job2.VehicleModel}'");
             
             bool companyChange = job1.Company != job2.Company;
             bool brandChange = job1.VehicleBrand != job2.VehicleBrand;
             bool modelChange = job1.VehicleModel != job2.VehicleModel;
             bool nullChange = string.IsNullOrEmpty(job1.Company) != string.IsNullOrEmpty(job2.Company);
             
-            Console.WriteLine($"🔍 DEBUG: DetectChanges - Company change: {companyChange}, Brand change: {brandChange}, Model change: {modelChange}, Null change: {nullChange}");
+            Console.WriteLine($"  📊 Company change: {companyChange} ('{job1.Company}' vs '{job2.Company}')");
+            Console.WriteLine($"  📊 Brand change:   {brandChange} ('{job1.VehicleBrand}' vs '{job2.VehicleBrand}')"); 
+            Console.WriteLine($"  📊 Model change:   {modelChange} ('{job1.VehicleModel}' vs '{job2.VehicleModel}')");
+            Console.WriteLine($"  📊 Null change:    {nullChange} (IsEmpty: '{string.IsNullOrEmpty(job1.Company)}' vs '{string.IsNullOrEmpty(job2.Company)}')");
             
             bool hasChanges = nullChange || companyChange || brandChange || modelChange;
-            Console.WriteLine($"🔍 DEBUG: DetectChanges - Final result: {hasChanges}");
+            
+            if (hasChanges)
+            {
+                Console.WriteLine($"✅✅✅ DetectChanges RESULT: {hasChanges} - DƏYİŞİKLİK VAR! ✅✅✅");
+                if (companyChange) Console.WriteLine($"    👉 Şirkət dəyişdi: {job1.Company} → {job2.Company}");
+                if (brandChange) Console.WriteLine($"    👉 Marka dəyişdi: {job1.VehicleBrand} → {job2.VehicleBrand}");
+                if (modelChange) Console.WriteLine($"    👉 Model dəyişdi: {job1.VehicleModel} → {job2.VehicleModel}");
+                if (nullChange) Console.WriteLine($"    👉 NULL status dəyişdi");
+            }
+            else
+            {
+                Console.WriteLine($"❌❌❌ DetectChanges RESULT: {hasChanges} - DƏYİŞİKLİK YOXDUR ❌❌❌");
+            }
+            
+            Console.WriteLine($"🔍🔍🔍 DEBUG: DetectChanges TAMAMLANDI 🔍🔍🔍");
             
             return hasChanges;
         }
@@ -370,6 +531,9 @@ namespace Sigortamat.Services
             user.EstimatedRenewalDay = midDate.Day;
             user.EstimatedRenewalMonth = midDate.Month;
             user.LastConfirmedRenewalDate = midDate;
+            // Yeni: pəncərə sərhədlərini saxla
+            user.RenewalWindowStart = earlierJob.CheckDate?.Date;
+            user.RenewalWindowEnd = laterJob.CheckDate?.Date;
             user.UpdatedAt = DateTime.Now;
 
             _logger.LogInformation("Updated user {UserId} with estimated renewal date: {Day}/{Month}", 

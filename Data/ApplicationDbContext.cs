@@ -19,6 +19,8 @@ namespace Sigortamat.Data
         // Renewal tracking sistemi
         public DbSet<User> Users { get; set; }
         public DbSet<InsuranceRenewalTracking> InsuranceRenewalTracking { get; set; }
+        // Leads
+        public DbSet<Lead> Leads { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -72,6 +74,20 @@ namespace Sigortamat.Data
                 
                 // Foreign key relationship
                 entity.HasOne(e => e.User)
+                      .WithMany()
+                      .HasForeignKey(e => e.UserId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<Lead>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.LeadType).IsRequired().HasMaxLength(50);
+                entity.Property(e => e.Notes).HasMaxLength(1000);
+
+                entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETDATE()");
+
+                entity.HasOne<User>()
                       .WithMany()
                       .HasForeignKey(e => e.UserId)
                       .OnDelete(DeleteBehavior.Cascade);

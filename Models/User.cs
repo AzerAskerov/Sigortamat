@@ -13,6 +13,15 @@ namespace Sigortamat.Models
         public int? EstimatedRenewalDay { get; set; }
         public int? EstimatedRenewalMonth { get; set; }
         public DateTime? LastConfirmedRenewalDate { get; set; }
+        /// <summary>
+        /// Hesablanmış sığorta yenilənmə pəncərəsinin başlanğıcı (earlier job tarixidir)
+        /// </summary>
+        public DateTime? RenewalWindowStart { get; set; }
+
+        /// <summary>
+        /// Hesablanmış sığorta yenilənmə pəncərəsinin sonu (later job tarixidir)
+        /// </summary>
+        public DateTime? RenewalWindowEnd { get; set; }
         public bool NotificationEnabled { get; set; } = true;
         public DateTime CreatedAt { get; set; } = DateTime.Now;
         public DateTime? UpdatedAt { get; set; }

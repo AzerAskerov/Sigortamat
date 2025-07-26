@@ -22,7 +22,7 @@ PRINT '--- Identity sayğacları sıfırlandı.';
 -- Addım 3: 77BV028 üçün vahid test keysinin yaradılması
 PRINT '--- 77BV028 üçün yeni test keysi yaradılır...';
 
-DECLARE @CarNumber NVARCHAR(20) = '77BV028';
+DECLARE @CarNumber NVARCHAR(20) = '77JG327';
 DECLARE @UserId INT;
 DECLARE @TrackingId INT;
 DECLARE @QueueId INT;
